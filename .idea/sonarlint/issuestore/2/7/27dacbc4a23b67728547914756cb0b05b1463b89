@@ -1,0 +1,13 @@
+
+python:S1871"bEither merge this branch with the identical one on line "28" or change one of the implementations.(éğ¤ç8»è•—í1
+{python:S1542 "WRename function "shapeFile2Postgis" to match the regular expression ^[a-z_][a-z0-9_]*$.(¥ä²’ùÿÿÿÿ8»è•—í1
+|python:S1542_"XRename function "shapeFiles2Postgis" to match the regular expression ^[a-z_][a-z0-9_]*$.(ş«¶ıÿÿÿÿ8»è•—í1
+]python:S1481b"9Replace unused local variable "srid_validation" with "_".(’­Ş“úÿÿÿÿ8Ş’™—í1
+Wpython:S1481b"3Replace unused local variable "load_type" with "_".(’­Ş“úÿÿÿÿ8Ş’™—í1
+xpython:S3776_"TRefactor this function to reduce its Cognitive Complexity from 18 to the 15 allowed.(ş«¶ıÿÿÿÿ8»è•—í1
+Tpython:S1481Š"4Replace unused local variable "map_create" with "_".(Ú¾¿Ì8»è•—í1
+Cpython:S125–"Remove this commented out code.(–ºÁşÿÿÿÿ8»è•—í1
+\python:S5754¡"<Specify an exception class to catch or reraise the exception(ˆÊÉ·8»è•—í1
+\python:S5754¨"<Specify an exception class to catch or reraise the exception(ˆÊÉ·8»è•—í1
+spython:S3776È"TRefactor this function to reduce its Cognitive Complexity from 20 to the 15 allowed.(Ê··p8»è•—í1
+Spython:S1481…".Replace unused local variable "srid" with "_".(ËÈƒ€üÿÿÿÿ8¸ÊŸ—í1
