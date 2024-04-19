@@ -29,12 +29,12 @@ def get_list_files(shapefile_folder):
             elif file_name.endswith('.dbf'):
                 map_files[k] = file_name
     return map_files
+
 def shapeFile2Postgis(file_zip,conn_str,schema,engine=engine_sinfiDb_no_async):
     try:
         shapefile_folder = unzip(file_zip,"export")
         if not ENABLE_POOL_LOAD:
             return shapeFiles2Postgis(conn_str,schema,engine,shapefile_folder)
-
         logger.info(f"Caricamento parallelo,file:{file_zip}")
         map_results = {}
         map_files = get_list_files(shapefile_folder)

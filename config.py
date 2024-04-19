@@ -1,8 +1,8 @@
 import ast
 import os
-from sqlalchemy import create_engine, NullPool
+from sqlalchemy import create_engine
 
-APP = os.getenv("APP","Poc_RC")
+APP = os.getenv("APP","geo_labs:app")
 
 POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
