@@ -5,7 +5,7 @@ from multiprocessing.pool import ThreadPool
 
 import psycopg2
 
-from config import engine_sinfiDb_no_async,APP
+from config import engine_sinfiDb_no_async, APP, CHUNCKSIZE
 import os
 logger = logging.getLogger(APP)
 from simpledbf import Dbf5
