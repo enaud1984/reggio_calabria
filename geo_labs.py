@@ -1,10 +1,13 @@
 import logging
 import os
+import re
 import shutil
+import subprocess
 import traceback
 
 from starlette.responses import JSONResponse
 
+from CodeInputDAO import CodeInput
 from config import APP, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, PATH_TO_UPLOAD
 
 from fastapi import FastAPI, UploadFile, File
@@ -60,3 +63,31 @@ async def shape_file2postgis(validation_id:int, shapefile_folder:str, map_tables
         print(f"Error:{e}")
         traceback.print_exc()
         return JSONResponse(content={"esito":"KO","error": str(e)}, status_code=501)
+
+
+@app.post("/execute_code/")
+async def execute_code(code_input: CodeInput):
+    # Controllo se il linguaggio è supportato
+    if code_input.language not in ["python", "matlab", "r"]:
+        return JSONResponse(status_code=400, content="Linguaggio non supportato")
+
+    # Analisi del codice alla ricerca dei parametri %param1%
+    params = re.findall(r'%([^%]+)%', code_input.code)
+
+    # Sostituzione dei parametri con i valori forniti dall'utente
+    for param in params:
+        value=code_input.params[param]
+    code_input.code = code_input.code.replace(f'%{param}%', value)
+
+    # Esecuzione del codice
+    if code_input.language == "python":
+        try:
+            result = eval(code_input.code)
+            return JSONResponse(status_code=200, content={"result": result})
+        except Exception as e:
+            return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
+
+    elif code_input.language == "r":
+        pass
+    elif code_input.language == "matlab":
+        pass
