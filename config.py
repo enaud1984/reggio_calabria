@@ -24,3 +24,5 @@ CHUNCKSIZE=eval(os.getenv("CHUNCKSIZE","30000"))
 #parte di log usati in logger_api.py
 LOG_LEVEL = os.getenv("LOG_LEVEL","INFO")
 HANDLERS=ast.literal_eval(os.getenv("LOG_HANDLER",'["default","file"]'))
+
+PATH_TO_UPLOAD=os.path.join("to_upload")
