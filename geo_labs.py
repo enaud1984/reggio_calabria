@@ -4,7 +4,7 @@ import re
 import shutil
 import subprocess
 import traceback
-
+import rpy2.robjects as robjects
 from starlette.responses import JSONResponse
 
 from CodeInputDAO import CodeInput
@@ -86,10 +86,12 @@ async def execute_code(code_input: CodeInput):
             return JSONResponse(status_code=200, content={"result": result})
         except Exception as e:
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
-
     elif code_input.language == "r":
-        #TODO:
-        pass
+        try:
+            result = robjects.r(code_input.code)
+            return JSONResponse(status_code=200, content={"result": result})
+        except Exception as e:
+            return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
     elif code_input.language == "matlab":
         #TODO:
         pass
