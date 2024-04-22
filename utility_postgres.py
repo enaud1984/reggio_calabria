@@ -7,6 +7,9 @@ import psycopg2
 
 from config import engine_sinfiDb_no_async, APP, CHUNCKSIZE
 import os
+
+from utility import find_specTable, change_column_types
+
 logger = logging.getLogger(APP)
 from simpledbf import Dbf5
 
@@ -120,7 +123,7 @@ class Dbf_wrapper(Dbf5):
             yield result
 
 
-def shapeFile2Postgis(validation_id,map_files,shapefile_folder,group_id,conn_str,schema=None,
+def shapeFile2Postgis(validation_id,map_files,map_tables_edited,shapefile_folder,group_id,conn_str,schema=None,
                       engine=engine_sinfiDb_no_async, srid=None,load_type="append"):
     from importerLayers import publish_layers
     try:
@@ -129,8 +132,8 @@ def shapeFile2Postgis(validation_id,map_files,shapefile_folder,group_id,conn_str
         logger.info(f"Caricamento parallelo, srid={srid}, load_type={load_type}")
 
         map_results = {}
-        list_dbf=[k for k,file_name in map_files.items() if file_name.endswith('.dbf')]
-        list_shp=[k for k,file_name in map_files.items() if file_name.endswith('.shp')]
+        list_dbf=[k for k, file_name in map_files.items() if file_name.endswith('.dbf')]
+        list_shp=[k for k, file_name in map_files.items() if file_name.endswith('.shp')]
         logger.info(f"Caricamento parallelo:{shapefile_folder}, dbf:{len(list_dbf)},shp:{len(list_shp)}")
         num_thread =int(len(map_files)/2)+1
         tasks=[]
@@ -140,14 +143,14 @@ def shapeFile2Postgis(validation_id,map_files,shapefile_folder,group_id,conn_str
             file_name = map_files[k]
             shapefile_path = os.path.join(shapefile_folder, file_name)
             table_name = k  # Usa il nome del file shape come nome della tabella
-            task = pool.apply_async(load_dbf_to_postgis, args=(shapefile_path, table_name,conn_str,schema,engine,group_id,load_type,srid))
+            task = pool.apply_async(load_dbf_to_postgis, args=(shapefile_path,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
             tasks.append(task)
 
         for k in list_shp:
             file_name = map_files[k]
             shapefile_path = os.path.join(shapefile_folder, file_name)
             table_name = k  # Usa il nome del file shape come nome della tabella
-            task = pool.apply_async(load_shapefile_to_postgis, args=(shapefile_path, table_name,conn_str,schema,engine,group_id,load_type,srid))
+            task = pool.apply_async(load_shapefile_to_postgis, args=(shapefile_path, map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
             tasks.append(task)
         pool.close()
         pool.join()
@@ -177,20 +180,22 @@ def shapeFile2Postgis(validation_id,map_files,shapefile_folder,group_id,conn_str
         print(e)
 
 
-def load_dbf(shapefile_path,table_name,group_id=None,srid_validation=None):
+def load_dbf(shapefile_path, table_name,group_id=None,srid_validation=None):
     dbf = Dbf_wrapper(shapefile_path)
     df = dbf.to_dataframe()
     df = df.rename(columns=str.lower)
     if group_id:
         df['group_id']=group_id
-    map_create, columns, _, columns_list=get_columns_shapefile(shapefile_path,table_name,df,srid_validation)
+    map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid_validation)
     return map_create, columns, _, columns_list,df
 
-def load_dbf_to_postgis(shapefile_path,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
+def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
     try:
         #import pandas as pd
         start_time = get_now()
         map_create, columns, _, columns_list,df=load_dbf(shapefile_path,table_name,group_id,srid_validation)
+        json_types=find_specTable(map_tables_edited,table_name)
+        df=change_column_types(df, json_types)
         res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine)
         elapsed=(get_now() - start_time).total_seconds()
         logger.info(f"caricato {table_name},map_create:{map_create},elapsed:{elapsed}")
@@ -328,10 +333,12 @@ def get_columns_shapefile(shapefile_path,table_name,gdf, srid = None):
     columns = ", ".join([f"{column} {dtype}" for column, dtype in map_create.items()])
     return map_create,columns,srid,columns_list
 
-def load_shapefile_to_postgis(shapefile_path,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
+def load_shapefile_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
     map_create={}
     try:
         resp, columns, gdf, columns_list, start_time, elapsed,map_create = load_shapefile(shapefile_path, table_name, group_id, srid_validation)
+        json_types=find_specTable(map_tables_edited,table_name)
+        gdf=change_column_types(gdf, json_types)
         if not resp:
             return False,table_name,elapsed
         res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,gdf,columns_list,engine)
