@@ -1,3 +1,5 @@
+from typing import List
+
 from pydantic import BaseModel
 
 
@@ -8,19 +10,17 @@ class CodeInput(BaseModel):
     data: dict  #json di oout di UPLOAD MODELLO PYTHON
 
 
-map_temp={"filename": file,
-          "schema": "",
-          "table": table_name,
-          "column": col,
-          "tipo": tipo,
-          "column_name": "",
-          "import": True}
-class ResponseUpload(BaseModel):
-    filename:str,
-    schema:str,
-    table: str,
-    column: col,
-    tipo: tipo,
-    column_name": "",
-    import": True
 
+class ColumnResponse(BaseModel):
+    filename: str
+    schema_name: str="public"
+    table: str
+    column: str
+    tipo: str
+    column_name: str
+    importing: bool = True
+    isVariable: bool = True
+    df_out: bool = False
+
+class MapTables(BaseModel):
+    data: List[ColumnResponse]

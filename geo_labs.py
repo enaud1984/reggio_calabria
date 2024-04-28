@@ -7,7 +7,7 @@ import traceback
 
 from starlette.responses import JSONResponse
 
-from DAO import CodeInput
+from DAO import CodeInput, ColumnResponse, MapTables
 from config import APP, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, PATH_TO_UPLOAD, \
     LIST_SRID
 
@@ -34,44 +34,41 @@ async def upload_zip_file(file: UploadFile = File(...)):
         #unzip file
         shapefile_folder=unzip(file_path_zip,PATH_TO_UPLOAD)
         os.remove(file_path_zip)
-        map_tables={"data":[]}
-        res=None
-        table_name=None
-        map_create=None
+        mapping_fields = MapTables(data=[])
         for file in os.listdir(shapefile_folder):
+            file_path=os.path.join(shapefile_folder, file)
+            table_name=None
+            map_create=None
             if file.endswith('.dbf'):
                 table_name=file.split(".")[0]
-                file_path=os.path.join(shapefile_folder, file)
                 map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id=None,srid_validation=None)
             if file.endswith('.shp'):
                 table_name=file.split(".")[0]
-                res, columns, gdf, columns_list, start_time, elapsed,map_create=load_shapefile(file,table_name,group_id=None,srid_validation=None)
-            if res and map_create and table_name:
+                res, columns, gdf, columns_list, start_time, elapsed,map_create=load_shapefile(file_path,table_name,group_id=None,srid_validation=None)
+            if map_create and table_name:
                 for col, tipo in map_create.items():
-                    map_temp={"filename": file,
-                              "schema": "",
-                              "table": table_name,
-                              "column": col,
-                              "tipo": tipo,
-                              "column_name": "",
-                              "import": True}
-                    map_tables["data"].append(map_temp)
-        """
-        {"data":  [{"filename":"INFR_RT.dbf",
-                    "schema":"public",
-                    "table":"INFR_RT",
-                    "column":"id",
-                    "type":"int",
-                    "column_name":"id",
-                    "import":true},...
-        """
-        return JSONResponse(content=map_tables, status_code=200)
+                    column_response = ColumnResponse(
+                        filename=file,
+                        table=table_name,
+                        column=col,
+                        tipo=tipo,
+                        column_name=col,
+                        importing=True
+                    )
+
+                    mapping_fields.data.append(column_response)
+
+        return JSONResponse(content=mapping_fields.model_dump_json(), status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-@app.post("/shape_file2postgis")
-async def shape_file2postgis(shapefile_folder:str, map_tables_edited:dict, group_id:None, schema:str=None, srid_validation=Query(description="Selezionare SRID di riferimento",enum=LIST_SRID),load_type="append"):
-    conn_str_db = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'"
+@app.post("/load_shapefile2postgis")
+async def shape_file2postgis(shapefile_folder: str,
+                             group_id: None,
+                             conn_str_db: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'",
+                             schema: str = None,
+                             srid_validation=Query(description="Selezionare SRID di riferimento",enum=LIST_SRID),load_type="append",
+                             mapping_fields: MapTables = None):
     try:
         map_files=get_map_files(shapefile_folder)
         #TODO: validation_id= lo deve creare il DB
