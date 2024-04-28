@@ -1,13 +1,11 @@
-import logging
 from logging.config import dictConfig
-from fastapi import FastAPI
 import uvicorn
-from starlette.responses import JSONResponse
 from config import APP
 import os
-from utility import shapeFile2Postgis
 from logger_api import LogConfig
-import traceback
+
+from config import R_HOME
+os.environ['R_HOME'] = R_HOME
 
 if __name__ == "__main__":
     log = LogConfig().model_dump()

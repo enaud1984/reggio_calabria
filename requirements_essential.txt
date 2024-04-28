@@ -61,3 +61,4 @@ GeoAlchemy2
 aioschedule
 psutil
 simpledbf
+rpy2
