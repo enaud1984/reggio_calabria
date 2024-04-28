@@ -9,17 +9,15 @@ class CodeInput(BaseModel):
     params: dict
     data: dict  #json di oout di UPLOAD MODELLO PYTHON
 
-
-
 class ColumnResponse(BaseModel):
     filename: str
-    schema_name: str="public"
+    schema_name: str = "public"
     table: str
     column: str
     tipo: str
     column_name: str
     importing: bool = True
-    isVariable: bool = True
+    isVariable: bool = False
     df_out: bool = False
 
 class MapTables(BaseModel):

@@ -59,7 +59,7 @@ async def upload_zip_file(file: UploadFile = File(...)):
                         )
                         mapping_fields.data.append(column_response)
 
-        return JSONResponse(content=mapping_fields.model_dump_json(), status_code=200)
+        return JSONResponse(content=str(mapping_fields.model_dump_json()), status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
@@ -142,7 +142,12 @@ async def execute_code(code_input: CodeInput):
     # Esecuzione del codice
     if code_input.language == "python":
         try:
-            result = eval(code_input.code)
+            variables = {}
+            exec(code_input.code, {}, variables)
+            df_out=""
+            #df_out=cercare su code_input.data il nome della variabile con df_out = True
+            df_result = variables[df_out]
+
 
             #return JSONResponse(status_code=200, content={"result": str(result.show(20))})
         except Exception as e:
