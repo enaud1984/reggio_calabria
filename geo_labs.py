@@ -35,28 +35,29 @@ async def upload_zip_file(file: UploadFile = File(...)):
         shapefile_folder=unzip(file_path_zip,PATH_TO_UPLOAD)
         os.remove(file_path_zip)
         mapping_fields = MapTables(data=[])
-        for file in os.listdir(shapefile_folder):
-            file_path=os.path.join(shapefile_folder, file)
-            table_name=None
-            map_create=None
-            if file.endswith('.dbf'):
-                table_name=file.split(".")[0]
-                map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id=None,srid_validation=None)
-            if file.endswith('.shp'):
-                table_name=file.split(".")[0]
-                res, columns, gdf, columns_list, start_time, elapsed,map_create=load_shapefile(file_path,table_name,group_id=None,srid_validation=None)
-            if map_create and table_name:
-                for col, tipo in map_create.items():
-                    column_response = ColumnResponse(
-                        filename=file,
-                        table=table_name,
-                        column=col,
-                        tipo=tipo,
-                        column_name=col,
-                        importing=True
-                    )
-
-                    mapping_fields.data.append(column_response)
+        #for file in os.listdir(shapefile_folder):
+        for root, dirs, files in os.walk(shapefile_folder):
+            for file in files:
+                file_path=os.path.join(root, file)
+                table_name=None
+                map_create=None
+                if file.endswith('.dbf'):
+                    table_name=file.split(".")[0]
+                    map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id=None,srid_validation=None)
+                if file.endswith('.shp'):
+                    table_name=file.split(".")[0]
+                    res, columns, gdf, columns_list, start_time, elapsed,map_create=load_shapefile(file_path,table_name,group_id=None,srid_validation=None)
+                if map_create and table_name:
+                    for col, tipo in map_create.items():
+                        column_response = ColumnResponse(
+                            filename=file,
+                            table=table_name,
+                            column=col,
+                            tipo=tipo,
+                            column_name=col,
+                            importing=True
+                        )
+                        mapping_fields.data.append(column_response)
 
         return JSONResponse(content=mapping_fields.model_dump_json(), status_code=200)
     except Exception as e:
