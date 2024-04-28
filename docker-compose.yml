@@ -1,0 +1,77 @@
+version: "3.7"
+
+      
+services:
+  db:
+    image: timescale/timescaledb-ha:pg12-ts2.5-latest
+    container_name: db
+    volumes:
+      #- db-data:/var/lib/postgresql/data
+      #- ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ../db:/docker-entrypoint-initdb.d/db
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+      - db-data-ha:/home/postgres/pgdata
+    ports:
+      - "5444:5432"
+    environment:
+      - POSTGRES_DB=sinfi
+      - POSTGRES_PASSWORD=postgres
+      - TZ=Europe/Rome
+  geoserver:
+    image: docker.osgeo.org/geoserver:2.25.0
+    # build: ./docker/geoserver/
+    container_name: geoserver
+    environment:
+      INSTALL_EXTENSIONS: "true"
+      STABLE_EXTENSIONS: "css,monitor,pyramid"
+      COMMUNITY_EXTENSIONS: "backup-restore,control-flow"
+      OGC_REQUEST_TIMEOUT: 30
+      OGC_REQUEST_MAX_RETRIES: 1
+      OGC_REQUEST_BACKOFF_FACTOR: 0.3
+      OGC_REQUEST_POOL_MAXSIZE: 10
+      OGC_REQUEST_POOL_CONNECTIONS: 100
+      ENABLE_JSONP: true
+      outFormat: text/javascript
+      GEOSERVER_JAVA_OPTS: -Djava.awt.headless=true -Xms4G -Xmx8G -Dgwc.context.suffix=gwc -XX:+UnlockDiagnosticVMOptions -XX:+LogVMOutput -XX:LogFile=/var/log/jvm.log -XX:PerfDataSamplingInterval=500 -XX:SoftRefLRUPolicyMSPerMB=36000 -XX:-UseGCOverheadLimit -XX:ParallelGCThreads=4 -Dfile.encoding=UTF8 -Djavax.servlet.request.encoding=UTF-8 -Djavax.servlet.response.encoding=UTF-8 -Duser.timezone=GMT -Dorg.geotools.shapefile.datetime=false -DGS-SHAPEFILE-CHARSET=UTF-8 -DGEOSERVER_CSRF_DISABLED=true -DPRINT_BASE_URL=http://localhost/geoserver/pdf -DALLOW_ENV_PARAMETRIZATION=true -Xbootclasspath/a:/usr/local/tomcat/webapps/geoserver/WEB-INF/lib/marlin-0.9.3-Unsafe.jar -Dsun.java2d.renderer=org.marlin.pisces.MarlinRenderingEngine
+    volumes:
+      - logs:${GEOSERVER_LOG_DIR:-/var/geoserver/logs}
+      - datadir:${GEOSERVER_DATA_DIR:-/var/geoserver/datadir}
+      - gwc_config:${GEOWEBCACHE_CONFIG_DIR:-/var/geoserver/datadir/gwc}
+      - gwc:${GEOWEBCACHE_CACHE_DIR:-/var/geoserver/gwc_cache_dir}
+      - netcfd:${NETCDF_DATA_DIR:-/var/geoserver/netcdf_data_dir}
+      - grib_cache:${GRIB_CACHE_DIR:-/var/geoserver/grib_cache_dir}
+    ports:
+      - 8080:8080
+    restart: unless-stopped
+    
+
+volumes:
+  #db-data:
+  statics:
+    name: ${COMPOSE_PROJECT_NAME}-statics
+  db-data-ha:
+    name: ${COMPOSE_PROJECT_NAME}-db-data-ha
+  geoserver-data-dir:
+    name: ${COMPOSE_PROJECT_NAME}-gsdatadir
+  dbdata:
+    name: ${COMPOSE_PROJECT_NAME}-dbdata
+  dbbackups:
+    name: ${COMPOSE_PROJECT_NAME}-dbbackups
+  backup-restore:
+    name: ${COMPOSE_PROJECT_NAME}-backup-restore
+  data:
+    name: ${COMPOSE_PROJECT_NAME}-data
+  tmp:
+    name: ${COMPOSE_PROJECT_NAME}-tmp
+  logs:
+    name: ${COMPOSE_PROJECT_NAME}-logs
+  datadir:
+   name: ${COMPOSE_PROJECT_NAME}-datadir
+  gwc_config:
+    name: ${COMPOSE_PROJECT_NAME}-gwc_config
+  gwc:
+    name: ${COMPOSE_PROJECT_NAME}-gwc
+  netcfd:
+    name: ${COMPOSE_PROJECT_NAME}-netcfd
+  grib_cache:
+    name: ${COMPOSE_PROJECT_NAME}-grib_cache
