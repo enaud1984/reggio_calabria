@@ -69,3 +69,6 @@ cmake-build-*/
 
 # IntelliJ
 out/
+=======
+/log/
+/to_upload/

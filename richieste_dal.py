@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 from datetime import datetime
 #from config import DEFAULT_LOAD_TYPE, DEFAULT_STATUS
-from richieste_entity import RequestEntity
+from richieste_entity import RequestEntityUpload
 
 
 def sqlalchemy_to_dict(obj):
@@ -16,20 +16,18 @@ def sqlalchemy_to_dict(obj):
 class RichiesteDAL:
     def __init__(self, db_session: Session):
         self.db_session = db_session
-        self.model = RequestEntity
+        self.model = RequestEntityUpload
 
-    async def create_request(self, ID: int, SHAPEFILE: str,DATE_UPLOAD:datetime,DATA_LOAD:datetime,DATA_EXECUTION:datetime,STATUS:str,
-                             GROUP_ID: str, PATH_SHAPEFILE: str,MD5: str, USERFILE:str, ESITO:str, LOAD_TYPE:str = "append", RESULTS:dict={}):
+    async def create_request(self, ID_SHAPE: int, SHAPEFILE: str,DATE_UPLOAD:datetime,STATUS:str,
+                             GROUP_ID: str, PATH_SHAPEFILE: str,MD5: str, USERFILE:list, SRID:int,RESPONSE:dict={}):
 
-        new_request = self.model(ID=ID, SHAPEFILE=SHAPEFILE, STATUS=STATUS,DATE_UPLOAD=DATE_UPLOAD,DATA_LOAD=DATA_LOAD,
-                                 DATA_EXECUTION=DATA_EXECUTION, GROUP_ID=GROUP_ID, PATH_SHAPEFILE=PATH_SHAPEFILE,
-                                 MD5=MD5, USERFILE=USERFILE, ESITO=ESITO, LOAD_TYPE=LOAD_TYPE, RESULTS=RESULTS)
+        new_request = self.model(ID_SHAPE=ID_SHAPE, SHAPEFILE=SHAPEFILE, DATE_UPLOAD=DATE_UPLOAD,STATUS=STATUS,
+                                 GROUP_ID=GROUP_ID,SRID=SRID,PATH_SHAPEFILE=PATH_SHAPEFILE,MD5=MD5, USERFILE=USERFILE,
+                                 RESPONSE=RESPONSE)
 
         self.db_session.add(new_request)
         await self.db_session.flush()
         return new_request
-
-
 
     async def get_all_requests(self, id=None, group_id=None, skip: int = 0, limit: int = 100):
         stmt = select(self.model)
@@ -85,7 +83,7 @@ class RichiesteDAL:
                                       PATH_SHAPEFILE:Optional[str]= None
                                       # accodamenti in corso per lo stesso group-id (ad esempio 2 file tim-->2righe
                                       ):
-        from config import HOST_WORKER
+
         q = update(self.model).where(self.model.ID == ID)
         if SHAPEFILE:
             q = q.values(name=SHAPEFILE)
@@ -113,38 +111,3 @@ class RichiesteDAL:
         ret= await self.db_session.execute(q)
         return ret
 
-class Sql_to_ExecuteDAL:
-    def __init__(self, db_session: Session):
-        self.db_session = db_session
-
-    async def create_sql_to_execute(self, function_name: str, status: str, order: int, sql_source: str,
-                                    sql_to_execute: str,before_validation:bool):
-        new_Sql_to_Execute = Sql_to_Execute(function_name=function_name, status=status, order=order,
-                                            sql_source=sql_source, sql_to_execute=sql_to_execute,before_validation=before_validation)
-        self.db_session.add(new_Sql_to_Execute)
-        await self.db_session.flush()
-        return new_Sql_to_Execute
-
-    async def get_all_sql_to_execute(self) -> List[Sql_to_Execute]:
-        q = await self.db_session.execute(select(Sql_to_Execute).order_by(Sql_to_Execute.status, Sql_to_Execute.order))
-        return q.scalars().all()
-
-    async def del_sql_to_execute(self, function_name: str):
-        q = await self.db_session.execute(delete(Sql_to_Execute).where(Sql_to_Execute.function_name == function_name))
-        return q.scalars().all()
-
-    async def update_sql_to_execute(self, function_name: str, status: Optional[str], order: Optional[int],
-                                    sql_source: Optional[str], sql_for_execute: Optional[str],before_validation:Optional[bool]):
-        q = update(Sql_to_Execute).where(Sql_to_Execute.function_name == function_name)
-        if status:
-            q = q.values(status=status)
-        if order is not None:
-            q = q.values(order=order)
-        if sql_source:
-            q = q.values(sql_source=sql_source)
-        if sql_for_execute:
-            q = q.values(sql_to_execute=sql_for_execute)
-        if before_validation is not None:
-            q = q.values(before_validation=before_validation)
-        q.execution_options(synchronize_session="fetch")
-        await  self.db_session.execute(q)

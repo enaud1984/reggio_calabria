@@ -28,15 +28,14 @@ app = FastAPI(summary= "Applicativo per la gestione di file shape",
 logger = logging.getLogger(APP)
 
 @app.put("/upload_zip")
-async def upload_zip_file(file: UploadFile = File(...)):
+async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare SRID di riferimento", enum=LIST_SRID), file_zip: UploadFile = File(...)):
     try:
-        file_path_zip=os.path.join(PATH_TO_UPLOAD,str(file.filename))
+        file_path_zip=os.path.join(PATH_TO_UPLOAD,str(file_zip.filename))
         # Sposta il file nella cartella di destinazione
         with open(file_path_zip, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            shutil.copyfileobj(file_zip.file, buffer)
         #unzip file
         shapefile_folder=unzip(file_path_zip,PATH_TO_UPLOAD)
-        os.remove(file_path_zip)
         mapping_fields = MapTables(data=[])
         list_files=[]
         for root, dirs, files in os.walk(shapefile_folder):
@@ -47,11 +46,11 @@ async def upload_zip_file(file: UploadFile = File(...)):
                 if file.endswith('.dbf'):
                     list_files.append(file)
                     table_name=file.split(".")[0]
-                    map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id=None,srid_validation=None)
+                    map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id,srid)
                 if file.endswith('.shp'):
                     list_files.append(file)
                     table_name=file.split(".")[0]
-                    res, columns, gdf, columns_list, start_time, elapsed,map_create=load_shapefile(file_path,table_name,group_id=None,srid_validation=None)
+                    res, columns, gdf, columns_list, start_time, elapsed,map_create=load_shapefile(file_path,table_name,group_id,srid)
                 if map_create and table_name:
                     for col, tipo in map_create.items():
                         column_response = ColumnResponse(
@@ -67,25 +66,24 @@ async def upload_zip_file(file: UploadFile = File(...)):
         async with async_session_Db() as sessionpg:
             async with sessionpg.begin():
                 request_dal = RichiesteDAL(sessionpg)
-                md5_zip=get_md5(file.filename)
-                res_PostGres = await request_dal.create_request(ID=None,
-                                                                SHAPEFILE=file.filename,
+                md5_zip=get_md5(file_zip.filename)
+                os.remove(file_path_zip)
+                res_PostGres = await request_dal.create_request(ID_SHAPE=None,
+                                                                SHAPEFILE=file_zip.filename,
                                                                 DATE_UPLOAD=datetime.now(),
-                                                                DATA_LOAD=None,
-                                                                DATA_EXECUTION=None,
                                                                 STATUS="UPLOAD ZIP",
-                                                                GROUP_ID=None,
+                                                                GROUP_ID=group_id,
+                                                                SRID=srid,
                                                                 PATH_SHAPEFILE=shapefile_folder,
                                                                 MD5=md5_zip,
-                                                                USERFILE=",".join(list_files),
-                                                                LOAD_TYPE=None,
-                                                                ESITO="OK",
-                                                                RESULTS={})
+                                                                USERFILE=list_files,
+                                                                RESPONSE=mapping_fields.to_dict())
 
-                print(f"OK WRITE ON SINFIDB, VALIDATION_ID: {res_PostGres.ID}")
+                logger.info(f"OK WRITE ON SINFIDB, VALIDATION_ID: {res_PostGres.ID_SHAPE}")
 
         return JSONResponse(content=str(mapping_fields.model_dump_json()), status_code=200)
     except Exception as e:
+        logger.error(f"Error:{e}", stack_info=True)
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/load_shapefile2postgis")
@@ -155,11 +153,12 @@ async def delete_shape(id: int):
         async with session.begin():
             request_dal = RichiesteDAL(session)
             ret = await request_dal.get_all_requests(id=id)
+            #cancellazione folder da to_upload
             shutil.rmtree(ret.PATH_SHAPEFILE)
-            delete_layers()
+            #cancellazione layer pubblicati
+            delete_layers(l.split(".")[0] for l in ret.USERFILE)
             return await request_dal.del_request(id=id)
 
-#TODO: servizio per cancellazione shape sul db
 #TODO: servizio per update shape sul db
 #TODO: servizio per caricare il python del modello sul db  tabella id-modello-codice-json della sua response
 

@@ -7,7 +7,7 @@ from multiprocessing.pool import ThreadPool
 
 import psycopg2
 
-from config import ENABLE_POOL_LOAD, APP, engine_sinfiDb_no_async, CHUNCKSIZE
+from config import ENABLE_POOL_LOAD, APP, engine_Db_no_async, CHUNCKSIZE
 
 logger = logging.getLogger(APP)
 
@@ -40,7 +40,7 @@ def change_column_types(df, json_types):
         df[colonna] = df[colonna].astype(tipo)
     return df
 
-def get_md5(fname,path="uploaded_zip"):
+def get_md5(fname,path="to_upload"):
     if fname.endswith(".zip"):
         path_to_unzip_file = os.path.join(path, fname)
         return get_md5_file(path_to_unzip_file)

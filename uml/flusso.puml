@@ -1,0 +1,28 @@
+@startuml
+
+skin rose
+
+Bob -> geolab: carica_zip!
+geolab-> Bob :list_shp
+
+
+Bob -> geolab: carica_postgres(group_id,list_shp)
+geolab-> postgres :create_tables(list_shp)
+
+geolab-> geoserver :create_layers(list_shp)
+geolab<- geoserver :list_layers(group_id)
+geolab-> Bob :list_layer_geoservers,id_shps
+
+Bob -> geolab: carica_python(group_id,pythons)
+geolab-> postgres :create_python(lpythons,list_variables)
+geolab-> Bob :list_python_variables,python_id
+
+Bob -> geolab: associa_python(group_id,python_id,id_shps)
+geolab-> postgres :esegui_python(lpythons,list_variables)
+geolab-> postgres :create_tables(list_shp)
+geolab-> geoserver :create_layers(list_shp)
+geolab-> Bob :list_layers
+
+
+
+@enduml
