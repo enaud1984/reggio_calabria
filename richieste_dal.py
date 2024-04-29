@@ -29,15 +29,15 @@ class RichiesteDAL:
         await self.db_session.flush()
         return new_request
 
-    async def get_all_requests(self, id=None, group_id=None, skip: int = 0, limit: int = 100):
+    async def get_all_requests(self, ID_SHAPE=None, GROUP_ID=None, skip: int = 0, limit: int = 100):
         stmt = select(self.model)
-        if group_id is not None and id is not None:
+        if GROUP_ID is not None and ID_SHAPE is not None:
             q = await self.db_session.execute(
-                stmt.where(self.model.ID == id and self.model.GROUP_ID == group_id).offset(skip).limit(limit))
-        elif id is None and group_id is not None:
-            q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == group_id).offset(skip).limit(limit))
-        elif group_id is None and id is not None:
-            q = await self.db_session.execute(stmt.where(self.model.ID == id).offset(skip).limit(limit))
+                stmt.where(self.model.ID_SHAPE == ID_SHAPE and self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
+        elif ID_SHAPE is None and GROUP_ID is not None:
+            q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
+        elif GROUP_ID is None and id is not None:
+            q = await self.db_session.execute(stmt.where(self.model.ID_SHAPE == ID_SHAPE).offset(skip).limit(limit))
         return q.scalars().all()
 
     async def get_request(self, id=None):
@@ -66,8 +66,8 @@ class RichiesteDAL:
         host_worker_status_map=sorted(host_worker_status_map, key=lambda x: x['QUEUED'])
         return host_worker_status_map
 
-    async def del_request(self, id: int):
-        q = await self.db_session.execute(delete(self.model).where(self.model.ID == id))
+    async def del_request(self, ID_SHAPE: int):
+        q = await self.db_session.execute(delete(self.model).where(self.model.ID_SHAPE == ID_SHAPE))
         return q
 
     async def update_requestValidator(self, ID: int, USER_ID: Optional[str] = None,

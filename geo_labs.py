@@ -139,7 +139,7 @@ async def get_all_requests(id:int=None,group_id=None,skip: int = 0, limit: int =
 
 
 @app.delete("/delete_shape")
-async def delete_shape(id: int):
+async def delete_shape(ID_SHAPE: int):
     """_summary_<br>
                 cancellazione funzione<br>
          __Args:__<br>
@@ -152,12 +152,12 @@ async def delete_shape(id: int):
     async with async_session_Db() as session:
         async with session.begin():
             request_dal = RichiesteDAL(session)
-            ret = await request_dal.get_all_requests(id=id)
+            ret = await request_dal.get_all_requests(ID_SHAPE=ID_SHAPE)
             #cancellazione folder da to_upload
             shutil.rmtree(ret.PATH_SHAPEFILE)
             #cancellazione layer pubblicati
-            delete_layers(l.split(".")[0] for l in ret.USERFILE)
-            return await request_dal.del_request(id=id)
+            delete_layers([l.split(".")[0] for l in ret.USERFILE])
+            return await request_dal.del_request(ID_SHAPE=ID_SHAPE)
 
 #TODO: servizio per update shape sul db
 #TODO: servizio per caricare il python del modello sul db  tabella id-modello-codice-json della sua response
