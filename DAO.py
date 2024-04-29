@@ -4,7 +4,9 @@ from pydantic import BaseModel
 
 
 class CodeInput(BaseModel):
-    id_model: str
+    id_execute: int
+    model_id: int
+    shape_id: int
     language: str
     params: dict
     data: dict  #json di oout di UPLOAD MODELLO PYTHON

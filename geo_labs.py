@@ -9,16 +9,19 @@ from datetime import datetime
 from starlette.responses import JSONResponse
 
 from DAO import CodeInput, ColumnResponse, MapTables
-from config import APP, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, PATH_TO_UPLOAD, \
+from config import APP, LIST_LANG, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, PATH_TO_UPLOAD, \
     LIST_SRID, async_session_Db
 
 from fastapi import FastAPI, UploadFile, File, Query
 
-from importerLayers import delete_layers
+from importerLayers import delete_layers, publish_layers
 from richieste_dal import RichiesteDAL
 from utility import unzip, get_map_files, get_md5
 from utility_R import invoke_R
 from utility_postgres import shapeFile2Postgis, load_dbf, load_shapefile
+import pandas as pd
+import geopandas as gd
+
 
 app = FastAPI(summary= "Applicativo per la gestione di file shape",
               description="""
@@ -164,37 +167,73 @@ async def delete_shape(ID_SHAPE: int):
 
 
 @app.post("/execute_code/")
-async def execute_code(code_input: CodeInput):
-    # Controllo se il linguaggio è supportato
-    if code_input.language not in ["python", "r"]:
-        return JSONResponse(status_code=400, content="Linguaggio non supportato")
-
+async def execute_code(group_id:str,model_id: int,shape_id: int,params: dict,mapping_output: dict,code:str=None,language: str=Query(description="Selezionare linguaggio",enum=LIST_LANG) ):
+    from config import engine_Db_no_async,CHUNCKSIZE,connection_string
     # Analisi del codice alla ricerca dei parametri %param1%
-    params = re.findall(r'%([^%]+)%', code_input.code)
+    params = re.findall(r'%([^%]+)%', code)
 
     # Sostituzione dei parametri con i valori forniti dall'utente
     for param in params:
-        value=code_input.params[param]
-    code_input.code = code_input.code.replace(f'%{param}%', value)
-
+        value = params[param]
+        code = code.replace(f'%{param}%', value)
+    engine = engine_Db_no_async
     # Esecuzione del codice
-    if code_input.language == "python":
+    if language == "python":
         try:
             variables = {}
-            exec(code_input.code, {}, variables)
-            df_out=""
-            #df_out=cercare su code_input.data il nome della variabile con df_out = True
-            df_result = variables[df_out]
+            global_df = {}
+            mapping_shape = {}
+            for tablename,type_dataframe in mapping_shape.items():
+                if type_dataframe=="gd.GeoDataFrame":
+                    gdf:gd.GeoDataFrame = gd.read_postgis(f"{group_id}.{tablename}",connection_string)
+                    global_df[tablename] = gdf
+                if type_dataframe=="pd.DataFrame":
+                    df:pd.DataFrame = pd.read_sql_table(f"{group_id}.{tablename}",connection_string)
+                    global_df[tablename] = df
+                
+            exec(code, global_df, variables)
+            layers = []
+            tables = []
+            for k,v in mapping_output.items():
+                df_result = None
+                table_name = v
+                #df_out=cercare su code_input.data il nome della variabile con df_out = True
+                df_result = variables[k]
+                if hasattr(df_result,"crs"):
+                    gdf:gd.GeoDataFrame = df_result
+                    gdf.to_postgis(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
+                    layers.append(table_name)
+                elif type(df_result)==pd.DataFrame:
+                    df:pd.DataFrame=df_result
+                    df.to_sql(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
+                    tables.append(table_name)
+            #TODO:pubblicazione su geoserver
+            layers = publish_layers(group_id,layers)
 
-
-            #return JSONResponse(status_code=200, content={"result": str(result.show(20))})
+            return JSONResponse(status_code=200, content={"layers": layers,"table_name":table_name})
         except Exception as e:
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
-    elif code_input.language == "r":
+    elif language == "r":
         try:
-            result=invoke_R(code_input.code)
+            result,variables=invoke_R(code)
+            for k,v in mapping_output.items():
+                df_result = None
+                table_name = v
+                #df_out=cercare su code_input.data il nome della variabile con df_out = True
+                df_result = variables[k]
+                if hasattr(df_result,"crs"):
+                    gdf:gd.GeoDataFrame = df_result
+                    gdf.to_postgis(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
+                    layers.append(table_name)
+                elif type(df_result)==pd.DataFrame:
+                    df:pd.DataFrame=df_result
+                    df.to_sql(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
+                    tables.append(table_name)
+            #TODO:pubblicazione su geoserver
+            layers = publish_layers(group_id,layers)
+            return JSONResponse(status_code=200, content={"layers": layers,"table_name":table_name})
             #return JSONResponse(status_code=200, content={"result": result})
         except Exception as e:
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
-    #TODO:pubblicazione su geoserver
+    
 

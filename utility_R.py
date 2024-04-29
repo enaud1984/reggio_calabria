@@ -1,6 +1,7 @@
 
 from rpy2 import robjects
 
-def invoke_R(code_input):
-    result = robjects.r(code_input.code)
-    return result
+def invoke_R(code):
+    r = robjects.r
+    result = r(code)
+    return result,r
