@@ -34,17 +34,16 @@ class LogConfig(BaseModel):
             "filename": os.path.join("log",f"{APP.split(':')[0]}_{datetime.strftime(datetime.now(),'%Y%m%d_%H%M')}.log"),
             'maxBytes': 10485760,
             'backupCount': 3
-        } ,"access": {
+        }, "access": {
            'formatter': 'default',
             'class': 'logging.handlers.RotatingFileHandler',
             "filename": os.path.join("log",f"access_{APP.split(':')[0]}_{datetime.strftime(datetime.now(),'%Y%m%d')}.log"),
             'maxBytes': 10485760,
             'backupCount': 3
-        }     
-
+        }
     }
     loggers: dict = {
-        LOGGER_NAME: {"handlers": ["file"], "level": LOG_LEVEL},
+        LOGGER_NAME: {"handlers": HANDLERS, "level": LOG_LEVEL},
         "uvicorn":{
          "handlers":[
             "default"

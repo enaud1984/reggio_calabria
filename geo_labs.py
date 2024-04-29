@@ -78,10 +78,12 @@ async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare S
                                                                 MD5=md5_zip,
                                                                 USERFILE=list_files,
                                                                 RESPONSE=mapping_fields.to_dict())
-                print(f"OK WRITE ON SINFIDB, VALIDATION_ID: {res_PostGres.ID}")
+
+                logger.info(f"OK WRITE ON SINFIDB, VALIDATION_ID: {res_PostGres.ID_SHAPE}")
 
         return JSONResponse(content=str(mapping_fields.model_dump_json()), status_code=200)
     except Exception as e:
+        logger.error(f"Error:{e}", stack_info=True)
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/load_shapefile2postgis")
