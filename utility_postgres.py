@@ -346,6 +346,7 @@ def get_columns_shapefile(shapefile_path,table_name,gdf, srid):
 def load_shapefile_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
     map_create={}
     try:
+        start_time = get_now()
         resp, columns, gdf, columns_list, start_time, elapsed,map_create = load_shapefile(shapefile_path, table_name, group_id, srid_validation)
         json_types=find_specTable(map_tables_edited,table_name)
         gdf=change_column_types(gdf, json_types)
