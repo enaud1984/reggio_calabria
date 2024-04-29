@@ -204,15 +204,14 @@ def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,sch
         return False,table_name,elapsed
 
 
-def get_map_files(validation_id):
+def get_map_files(validation_id,conn_str_db):
     map_files={}
-    conn_str: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'",
-    with psycopg2.connect(conn_str) as conn:
+    with psycopg2.connect(conn_str_db) as conn:
         with conn.cursor() as cur:
             sql=f'SELECT "USERFILE" FROM public.richieste_upload where "ID_SHAPE"={validation_id};'
             cur.execute(sql)
             res = cur.fetchone()
-            map_files =  {file_name[:-4].lower():file_name for file_name in res[0]}
+            map_files =  {os.path.split(file_name)[-1][:-4].lower():file_name for file_name in res[0]}
     return map_files
 
 
@@ -366,6 +365,8 @@ def load_shapefile(shapefile_path,table_name,group_id,srid):
     gdf = gdf.rename(columns=str.lower)
     if srid is not None:
         gdf.set_crs(f"EPSG:{srid}", allow_override=True,inplace=True)
+    else:
+        srid = gdf.crs.to_epsg()
     if group_id:
         gdf['group_id']=group_id
     geometry_type = gdf.geometry.geom_type.unique()[0]

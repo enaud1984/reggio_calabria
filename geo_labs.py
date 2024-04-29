@@ -32,7 +32,7 @@ app = FastAPI(summary= "Applicativo per la gestione di file shape",
 logger = logging.getLogger(APP)
 
 @app.put("/upload_zip")
-async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare SRID di riferimento", enum=LIST_SRID), file_zip: UploadFile = File(...)):
+async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
     try:
         file_path_zip=os.path.join(PATH_TO_UPLOAD,str(file_zip.filename))
         # Sposta il file nella cartella di destinazione
@@ -58,7 +58,7 @@ async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare S
         for file_path,file in list_files_dbf:
             table_name = file[:-4]
             if table_name not in list_table_shp:
-                map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id,srid)
+                map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id,None)
                 map_results[table_name]={
                     "result":res,
                     "columns":columns, 
@@ -66,26 +66,30 @@ async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare S
                     "elapsed":elapsed,
                     "map_create":map_create
                 }
-                list_create.append(map_create)
+                list_create.append([None,map_create])
         for file_path,file in list_files_shp:
             table_name = file[:-4]
             if table_name in list_table_shp:
-                res, columns, gdf, columns_list, start_time, elapsed,map_create = load_shapefile(file_path,table_name,group_id,srid)
+                res, columns, gdf, columns_list, start_time, elapsed,map_create = load_shapefile(file_path,table_name,group_id,None)
+                srid  = gdf.crs.to_epsg()
                 map_results[table_name]={
                     "result":res,
                     "columns":columns, 
                     "columns_list":columns_list, 
                     "elapsed":elapsed,
+                    "srid":srid,
                     "map_create":map_create
                 }
-                list_create.append(map_create)
-        for map_create in list_create:
+                list_create.append([srid,map_create])
+        for srid,map_create in list_create:
             for col, tipo in map_create.items():
+                
                 column_response = ColumnResponse(
                     filename=file,
                     table=table_name,
                     column=col,
                     tipo=tipo,
+                    srid=srid,
                     column_name=col,
                     importing=True
                 )
@@ -115,17 +119,20 @@ async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare S
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/load_shapefile2postgis")
-async def shape_file2postgis(validation_id: int,
+async def load_shapefile2postgis(validation_id: int,
                              group_id: str,
                              schema: str = "public",
-                             srid_validation=Query(description="Selezionare SRID di riferimento",enum=LIST_SRID),
+                             srid_validation=Query(description="Selezionare SRID di riferimento",enum=["auto"]+LIST_SRID),
                              load_type="append",
                              mapping_fields: MapTables = None):
     try:
         #TODO:Update request
-        conn_str_db: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'",
+        #host='127.0.0.1' port='5444' dbname='postgres' user='postgres' password='postgres'
+        conn_str_db: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'"
                             
-        map_files = get_map_files(validation_id)
+        map_files = get_map_files(validation_id,conn_str_db)
+        if srid_validation=="auto":
+            srid_validation = None
         result = shapeFile2Postgis(validation_id,map_files,mapping_fields,group_id,conn_str_db,schema=schema,
                                  srid=srid_validation,load_type=load_type)
         return JSONResponse(content={"result": result,"esito":"OK","layers":result}, status_code=201)

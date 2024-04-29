@@ -20,6 +20,7 @@ class ColumnResponse(BaseModel):
     column_name: str
     importing: bool = True
     isVariable: bool = False
+    srid: int = None
     df_out: bool = False
 
 class MapTables(BaseModel):
