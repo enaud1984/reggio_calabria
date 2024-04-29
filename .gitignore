@@ -14,8 +14,6 @@ scs/mappingdb/*.*
 data/validatordb/*.dat
 
 .idea/*
-to_upload/*
-.idea/*
 .idea/sonarlint/*
 
 # User-specific stuff
@@ -71,4 +69,4 @@ cmake-build-*/
 out/
 =======
 /log/
-/to_upload/
+

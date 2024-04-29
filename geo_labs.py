@@ -40,32 +40,56 @@ async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare S
         #unzip file
         shapefile_folder=unzip(file_path_zip,PATH_TO_UPLOAD)
         mapping_fields = MapTables(data=[])
-        list_files=[]
+        list_files_dbf=[]
+        list_files_shp=[]
+        map_results={}
         for root, dirs, files in os.walk(shapefile_folder):
             for file in files:
                 file_path=os.path.join(root, file)
-                table_name=None
-                map_create=None
                 if file.endswith('.dbf'):
-                    list_files.append(file)
+                    list_files_dbf.append(file_path,file)
                     table_name=file.split(".")[0]
-                    map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id,srid)
                 if file.endswith('.shp'):
-                    list_files.append(file)
-                    table_name=file.split(".")[0]
-                    res, columns, gdf, columns_list, start_time, elapsed,map_create=load_shapefile(file_path,table_name,group_id,srid)
-                if map_create and table_name:
-                    for col, tipo in map_create.items():
-                        column_response = ColumnResponse(
-                            filename=file,
-                            table=table_name,
-                            column=col,
-                            tipo=tipo,
-                            column_name=col,
-                            importing=True
-                        )
-                        mapping_fields.data.append(column_response)
-
+                    list_files_shp.append(file_path,file)
+        list_table_shp=[file[:-4] for file_path,file in list_files_dbf] 
+        list_create =[]
+        list_files_dbf =[(file_path,file) for file_path,file in list_files_dbf if file[1][:-4] not in list_table_shp]   
+        for file_path,file in list_files_dbf:
+            table_name = file[:-4]
+            if table_name not in list_table_shp:
+                map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id,srid)
+                map_results[table_name]={
+                    "result":res,
+                    "columns":columns, 
+                    "columns_list":columns_list, 
+                    "elapsed":elapsed,
+                    "map_create":map_create
+                }
+                list_create.append(map_create)
+        for file_path,file in list_files_shp:
+            table_name = file[:-4]
+            if table_name not in list_table_shp:
+                res, columns, gdf, columns_list, start_time, elapsed,map_create = load_shapefile(file_path,table_name,group_id,srid)
+                map_results[table_name]={
+                    "result":res,
+                    "columns":columns, 
+                    "columns_list":columns_list, 
+                    "elapsed":elapsed,
+                    "map_create":map_create
+                }
+        for map_create in map_create:
+            list_create.append(map_create)        
+            for col, tipo in map_create.items():
+                column_response = ColumnResponse(
+                    filename=file,
+                    table=table_name,
+                    column=col,
+                    tipo=tipo,
+                    column_name=col,
+                    importing=True
+                )
+                mapping_fields.data.append(column_response)
+        list_files=list(map_create.keys())
         async with async_session_Db() as sessionpg:
             async with sessionpg.begin():
                 request_dal = RichiesteDAL(sessionpg)
@@ -103,7 +127,8 @@ async def shape_file2postgis(validation_id: int,
         map_files=get_map_files(shapefile_folder)
         result = shapeFile2Postgis(validation_id,map_files,shapefile_folder,mapping_fields,group_id,conn_str_db,schema=schema,
                                  srid=srid_validation,load_type=load_type)
-        return JSONResponse(content={"result": result,"esito":"OK"}, status_code=201)
+        layers = publish_layers(group_id,layers)
+        return JSONResponse(content={"result": result,"esito":"OK","layers":layers}, status_code=201)
     except Exception as e:
         logger.error(f"Error:{e}", stack_info=True)
         print(f"Error:{e}")
@@ -193,7 +218,7 @@ async def execute_code(group_id:str,model_id: int,shape_id: int,params: dict,map
                 
             exec(code, global_df, variables)
             layers = []
-            tables = []
+            tables = []    
             for k,v in mapping_output.items():
                 df_result = None
                 table_name = v
