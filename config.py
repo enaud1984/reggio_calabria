@@ -1,8 +1,11 @@
 import ast
 import os
 from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import NullPool
 
+Base = declarative_base()
 APP = os.getenv("APP","geo_labs:app")
 R_HOME = os.getenv("R_HOME", "C:\\Users\\gventura\\AppData\\Local\\Programs\\R\\R-4.3.3")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
@@ -17,15 +20,16 @@ DATABASE_URL_POSTGRES = os.getenv(
 )
 ENABLE_POOL_LOAD = os.getenv("ENABLE_POOL_LOAD","True")=="True"
 if ENABLE_POOL_LOAD:
-    engine_sinfiDb_no_async = create_engine(DATABASE_URL_POSTGRES.replace("+asyncpg",""),poolclass=NullPool)
+    engine_Db_no_async = create_engine(DATABASE_URL_POSTGRES.replace("+asyncpg",""),poolclass=NullPool)
 else:
-    engine_sinfiDb_no_async = create_engine(DATABASE_URL_POSTGRES.replace("+asyncpg",""))
-CHUNCKSIZE=eval(os.getenv("CHUNCKSIZE","30000"))
+    engine_Db_no_async = create_engine(DATABASE_URL_POSTGRES.replace("+asyncpg",""))
+engine_Db = create_async_engine(DATABASE_URL_POSTGRES)
+async_session_Db= sessionmaker(engine_Db, expire_on_commit=False, class_=AsyncSession)
 
+
+CHUNCKSIZE=eval(os.getenv("CHUNCKSIZE","30000"))
 #parte di log usati in logger_api.py
 LOG_LEVEL = os.getenv("LOG_LEVEL","INFO")
 HANDLERS=ast.literal_eval(os.getenv("LOG_HANDLER",'["default","file"]'))
-
 PATH_TO_UPLOAD=os.path.join("to_upload")
-
 LIST_SRID = ast.literal_eval(os.getenv("LIST_SRID","[3003,3004,23032,23033,23034,32632,32633,32634,32632,25832,25833,6707,6708,6709,6875,3857,7794,26591,26592,6705,102091,102092]"))

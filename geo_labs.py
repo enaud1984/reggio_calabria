@@ -4,16 +4,18 @@ import re
 import shutil
 import subprocess
 import traceback
+from datetime import datetime
 
 from starlette.responses import JSONResponse
 
 from DAO import CodeInput, ColumnResponse, MapTables
 from config import APP, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, PATH_TO_UPLOAD, \
-    LIST_SRID
+    LIST_SRID, async_session_Db
 
 from fastapi import FastAPI, UploadFile, File, Query
 
-from utility import unzip, get_map_files
+from richieste_dal import RichiesteDAL
+from utility import unzip, get_map_files, get_md5
 from utility_R import invoke_R
 from utility_postgres import shapeFile2Postgis, load_dbf, load_shapefile
 
@@ -35,16 +37,18 @@ async def upload_zip_file(file: UploadFile = File(...)):
         shapefile_folder=unzip(file_path_zip,PATH_TO_UPLOAD)
         os.remove(file_path_zip)
         mapping_fields = MapTables(data=[])
-        #for file in os.listdir(shapefile_folder):
+        list_files=[]
         for root, dirs, files in os.walk(shapefile_folder):
             for file in files:
                 file_path=os.path.join(root, file)
                 table_name=None
                 map_create=None
                 if file.endswith('.dbf'):
+                    list_files.append(file)
                     table_name=file.split(".")[0]
                     map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id=None,srid_validation=None)
                 if file.endswith('.shp'):
+                    list_files.append(file)
                     table_name=file.split(".")[0]
                     res, columns, gdf, columns_list, start_time, elapsed,map_create=load_shapefile(file_path,table_name,group_id=None,srid_validation=None)
                 if map_create and table_name:
@@ -59,20 +63,41 @@ async def upload_zip_file(file: UploadFile = File(...)):
                         )
                         mapping_fields.data.append(column_response)
 
+        async with async_session_Db() as sessionpg:
+            async with sessionpg.begin():
+                request_dal = RichiesteDAL(sessionpg)
+                md5_zip=get_md5(file.filename)
+                res_PostGres = await request_dal.create_request(ID=None,
+                                                                SHAPEFILE=file.filename,
+                                                                DATE_UPLOAD=datetime.now(),
+                                                                DATA_LOAD=None,
+                                                                DATA_EXECUTION=None,
+                                                                STATUS="UPLOAD ZIP",
+                                                                GROUP_ID=None,
+                                                                PATH_SHAPEFILE=shapefile_folder,
+                                                                MD5=md5_zip,
+                                                                USERFILE=",".join(list_files),
+                                                                LOAD_TYPE=None,
+                                                                ESITO="OK",
+                                                                RESULTS={})
+
+                print(f"OK WRITE ON SINFIDB, VALIDATION_ID: {res_PostGres.ID}")
+
         return JSONResponse(content=str(mapping_fields.model_dump_json()), status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/load_shapefile2postgis")
-async def shape_file2postgis(shapefile_folder: str,
+async def shape_file2postgis(validation_id: int,
+                             shapefile_folder: str,
                              group_id: None,
                              conn_str_db: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'",
                              schema: str = None,
-                             srid_validation=Query(description="Selezionare SRID di riferimento",enum=LIST_SRID),load_type="append",
+                             srid_validation=Query(description="Selezionare SRID di riferimento",enum=LIST_SRID),
+                             load_type="append",
                              mapping_fields: MapTables = None):
     try:
         map_files=get_map_files(shapefile_folder)
-        #TODO: validation_id= lo deve creare il DB
         result = shapeFile2Postgis(validation_id,map_files,shapefile_folder,map_tables_edited,group_id,conn_str_db,schema=schema,
                                  srid=srid_validation,load_type=load_type)
         return JSONResponse(content={"result": result,"esito":"OK"}, status_code=201)
@@ -122,7 +147,6 @@ async def get_all_requests_director(stato:str=Query(description="Selezionare lo 
 #TODO: servizio per update shape sul db
 
 #TODO: servizio per caricare il python del modello sul db  tabella id-modello-codice-json della sua response
-
 
 
 @app.post("/execute_code/")

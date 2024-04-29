@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import zipfile
 from datetime import datetime
@@ -38,3 +39,31 @@ def change_column_types(df, json_types):
     for colonna, tipo in json_types.items():
         df[colonna] = df[colonna].astype(tipo)
     return df
+
+def get_md5(fname,path="uploaded_zip"):
+    if fname.endswith(".zip"):
+        path_to_unzip_file = os.path.join(path, fname)
+        return get_md5_file(path_to_unzip_file)
+    else:
+        #to_upload\Shape_flat20240205_1439\Shape_flat
+        f_list=fname.split("\\")
+        nome_path_zip=os.path.join("uploaded_zip",f"{f_list[-2]}.zip")
+        path_da_zippare=os.path.join(*f_list[:-1])
+        zipp(path_da_zippare,nome_path_zip)
+        md5= get_md5(nome_path_zip.split("\\")[-1])
+        os.remove(nome_path_zip)
+        return md5
+
+def get_md5_file(fname):
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+def zipp(folder_path,zip_path):
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                zipf.write(file_path, os.path.relpath(file_path, folder_path))
