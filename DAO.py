@@ -22,3 +22,6 @@ class ColumnResponse(BaseModel):
 
 class MapTables(BaseModel):
     data: List[ColumnResponse]
+
+    def to_dict(self):
+        return {"data": [column_response.__dict__ for column_response in self.data]}

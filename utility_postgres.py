@@ -5,7 +5,7 @@ from multiprocessing.pool import ThreadPool
 
 import psycopg2
 
-from config import engine_sinfiDb_no_async, APP, CHUNCKSIZE
+from config import engine_Db_no_async, APP, CHUNCKSIZE
 import os
 
 from utility import find_specTable, change_column_types
@@ -124,7 +124,7 @@ class Dbf_wrapper(Dbf5):
 
 
 def shapeFile2Postgis(validation_id,map_files,map_tables_edited,shapefile_folder,group_id,conn_str,schema=None,
-                      engine=engine_sinfiDb_no_async, srid=None,load_type="append"):
+                      engine=engine_Db_no_async, srid=None,load_type="append"):
     from importerLayers import publish_layers
     try:
         if not schema:
@@ -180,13 +180,13 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,shapefile_folder
         print(e)
 
 
-def load_dbf(shapefile_path, table_name,group_id=None,srid_validation=None):
+def load_dbf(shapefile_path, table_name,group_id=None,srid=None):
     dbf = Dbf_wrapper(shapefile_path)
     df = dbf.to_dataframe()
     df = df.rename(columns=str.lower)
     if group_id:
         df['group_id']=group_id
-    map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid_validation)
+    map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid)
     return map_create, columns, _, columns_list,df
 
 def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
@@ -283,7 +283,7 @@ def load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_
                     logger.warning(f"No Table  {schema}.temp_{table_name}",stack_info=True)
         return True
 
-def get_columns_shapefile(shapefile_path,table_name,gdf, srid = None):
+def get_columns_shapefile(shapefile_path,table_name,gdf, srid):
     columns_list = list(gdf.columns)
     columns_list.append("group_id")
     if hasattr(gdf,"crs"):
@@ -348,10 +348,9 @@ def load_shapefile_to_postgis(shapefile_path,map_tables_edited,table_name,conn_s
         logger.error(f"Error creating table {table_name}: {e},map_create:{map_create}")
         return False,table_name,elapsed
 
-def load_shapefile(shapefile_path,table_name,group_id=None,srid_validation=None):
+def load_shapefile(shapefile_path,table_name,group_id,srid):
     import geopandas as gpd
     start_time = get_now()
-    srid = srid_validation
     gdf = gpd.read_file(shapefile_path)
     gdf = gdf.rename(columns=str.lower)
     if srid is not None:
@@ -363,6 +362,6 @@ def load_shapefile(shapefile_path,table_name,group_id=None,srid_validation=None)
         elapsed=(get_now() - start_time).total_seconds()
         logger.error(f"{shapefile_path} non la geometria valorizzata"  )
         return False, table_name, elapsed
-    map_create, columns, srid, columns_list = get_columns_shapefile(shapefile_path,table_name,gdf,srid_validation)
+    map_create, columns, srid, columns_list = get_columns_shapefile(shapefile_path,table_name,gdf,srid)
     elapsed = (get_now() - start_time).total_seconds()
     return True, columns, gdf, columns_list, start_time, elapsed,map_create

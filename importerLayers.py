@@ -1,11 +1,13 @@
 # Import the library
-from collections import namedtuple
 import datetime
 import logging
-from geo.Geoserver import Geoserver
+from collections import namedtuple
 from datetime import datetime
 
-from config import APP, BATCH_INSERT_SIZE, CONNECTION_TIMEOUT, ESTIMATED_EXTENDS, EVICTOR_RUN_PERIODICITY, EVICTOR_TESTS_PER_RUN, FETCH_SIZE, GEOSERVER_ADMIN_PASSWORD, GEOSERVER_ADMIN_USER, GEOSERVER_DB_PORT, GEOSERVER_DB_SERVICES, GEOSERVER_LOCATION, LOOSE_BBOX, MAX_CONNECTION_IDLE_TIME, MAX_CONNECTIONS, MAX_OPEN_PREPARED_STATEMENTS, MIN_CONNECTIONS, POSTGRES_DB_SINFI, POSTGRES_PASSWORD_SINFI, POSTGRES_USER_SINFI, PREPAREDSTATEMENTS, SUPPORT_ON_THE_FLY_GEOMETRY_SIMPLIFICATION, TEST_WHILE_IDLE, VALIDATE_CONNECTIONS
+from geo.Geoserver import Geoserver
+
+from config import APP, GEOSERVER_ADMIN_PASSWORD, GEOSERVER_ADMIN_USER, GEOSERVER_DB_PORT, GEOSERVER_DB_SERVICES, \
+    GEOSERVER_LOCATION, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
 
 logger = logging.getLogger(APP)
 
@@ -25,8 +27,8 @@ class GeoserverManager:
                     host: str = GEOSERVER_DB_SERVICES,
                     port: int = GEOSERVER_DB_PORT,
                     schema: str = "public",
-                    pg_user: str = POSTGRES_USER_SINFI,
-                    pg_password: str = POSTGRES_PASSWORD_SINFI,
+                    pg_user: str = POSTGRES_USER,
+                    pg_password: str = POSTGRES_PASSWORD,
                     ): 
         # For creating workspace
         self.workspace = f"{group_id}"
@@ -188,14 +190,10 @@ class GeoserverManager:
         # Resets all store, raster, and schema caches. This operation is used to force GeoServer to drop all caches and store connections and reconnect to each of them the next time they are needed by a request. This is useful in case the stores themselves cache some information about the data structures they manage that may have changed in the meantime.
         return self.geo.reset()
 
-def publish_layers(group_id,layers:list,dest_db:str=POSTGRES_DB_SINFI,with_view=True):
+def publish_layers(group_id,layers:list,dest_db:str=POSTGRES_DB,with_view=True):
     gs=GeoserverManager()
     gs.create_ws(group_id=group_id)
-    from utility_postgres import current_model
-    v_layers = current_model.create_views(layers,group_id)
     gs.create_layers(group_id,dest_db,layers=layers)
-    if with_view:
-        gs.create_layers(group_id,dest_db,layers=v_layers)
     stores = gs.getfeaturestores(group_id)
     return stores
 
@@ -211,5 +209,5 @@ if __name__=="__main__":
     #    "nd_com","tr_com","tr_com_tr_com_tra_sg"]
     group_id="tim"
     layers:list=['infr_rt_estensione_l', 'infr_rt_estensione_p', 'meta']
-    res=publish_layers(group_id,layers=layers,dest_db=POSTGRES_DB_SINFI)
+    res=publish_layers(group_id,layers=layers,dest_db=POSTGRES_DB)
     print(f"res {res}")

@@ -1,0 +1,25 @@
+1- UPLOAD ZIP -->in Cartella to_upload e fa l'unzip ->response: json con tutti i file e per ogni file i campi e tipi rilevati
+    Response:	{"data":[{"filename":"INFR_RT.dbf","schema":"public","table":"INFR_RT","column":"id","type":"int","column_name":"id","import":true},
+			             {"INFR_EXT_L.shp":{"id":"int","nome":"str","geom":"geometry"}}],
+	            }
+
+2- LOAD(map_files,
+        shapefile_folder,
+        group_id,
+        conn_str,
+        schema,
+        srid_validation,
+        mapping_fields)  --> carica in tabella gli shapefile
+
+   Response:	{"data":[{"filename":"INFR_RT.dbf","schema":"public","table":"INFR_RT","column":"id","type":"int","column_name":"id","import":true,isVariable:true},
+   			             {"INFR_EXT_L.shp":{"id":"int","nome":"str","geom":"geometry"}}],
+   	            }
+
+3 - UPLOAD MODELLO PYTHON --> nella cartella modelli
+    Response:	{"data":[{"filename":"model.py","schema":null,"table":null,"column":"id","type":"int","column_name":"id","import":null,isVariable:true,"df_out":false},
+       			         {"filename":"model.py","schema":"public","table":"output_table","column":"df2","type":"DataFrame","column_name":null,"import":null,isVariable:true,"df_out":true},
+                        ],
+       	            }
+       	            una riga per ogni variabile trovata nel modello come %HOSTNAME%
+
+3- RUN  (publish_layers con layer=1 tabella:["output_table"])
