@@ -14,6 +14,7 @@ from config import APP, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_US
 
 from fastapi import FastAPI, UploadFile, File, Query
 
+from importerLayers import delete_layers
 from richieste_dal import RichiesteDAL
 from utility import unzip, get_map_files, get_md5
 from utility_R import invoke_R
@@ -97,8 +98,9 @@ async def shape_file2postgis(validation_id: int,
                              load_type="append",
                              mapping_fields: MapTables = None):
     try:
+        #TODO:Update request
         map_files=get_map_files(shapefile_folder)
-        result = shapeFile2Postgis(validation_id,map_files,shapefile_folder,map_tables_edited,group_id,conn_str_db,schema=schema,
+        result = shapeFile2Postgis(validation_id,map_files,shapefile_folder,mapping_fields,group_id,conn_str_db,schema=schema,
                                  srid=srid_validation,load_type=load_type)
         return JSONResponse(content={"result": result,"esito":"OK"}, status_code=201)
     except Exception as e:
@@ -109,7 +111,7 @@ async def shape_file2postgis(validation_id: int,
 
 
 @app.get("/requests")
-async def get_all_requests(validation_id:int=None,group_id=None,skip: int = 0, limit: int = 100) :
+async def get_all_requests(id:int=None,group_id=None,skip: int = 0, limit: int = 100) :
     '''_Summary_<br>
         _Lista delle richieste storiche<br>
 
@@ -125,11 +127,10 @@ async def get_all_requests(validation_id:int=None,group_id=None,skip: int = 0, l
     '''
 
     try:
-        ret = None
         async with async_session_Db() as session:
             async with session.begin():
                 request_dal = RichiesteDAL(session)
-                ret = await request_dal.get_all_requests(validation_id, group_id, skip, limit)
+                ret = await request_dal.get_all_requests(id, group_id, skip, limit)
         return ret
     except Exception as e:
         logger.error(f"Error:{e}", stack_info=True)
@@ -137,17 +138,36 @@ async def get_all_requests(validation_id:int=None,group_id=None,skip: int = 0, l
                                      "id":id
                                      },
                             status_code=501)
-"""
+
+
+@app.delete("/delete_shape")
+async def delete_shape(id: int):
+    """_summary_<br>
+                cancellazione funzione<br>
+         __Args:__<br>
+             <li> function_name (str): _funzione da cancellare_ </li>
+
+        __Returns__:<br>
+            _type_: _json_
+
+        """
+    async with async_session_Db() as session:
+        async with session.begin():
+            request_dal = RichiesteDAL(session)
+            ret = await request_dal.get_all_requests(id=id)
+            shutil.rmtree(ret.PATH_SHAPEFILE)
+            delete_layers()
+            return await request_dal.del_request(id=id)
+
 #TODO: servizio per cancellazione shape sul db
 #TODO: servizio per update shape sul db
-
 #TODO: servizio per caricare il python del modello sul db  tabella id-modello-codice-json della sua response
 
 
 @app.post("/execute_code/")
 async def execute_code(code_input: CodeInput):
     # Controllo se il linguaggio è supportato
-    if code_input.language not in ["python", "matlab", "r"]:
+    if code_input.language not in ["python", "r"]:
         return JSONResponse(status_code=400, content="Linguaggio non supportato")
 
     # Analisi del codice alla ricerca dei parametri %param1%
