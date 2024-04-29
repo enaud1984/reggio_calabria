@@ -1,5 +1,5 @@
 -- Table: public.richieste_upload
-
+CREATE EXTENSION postgis;
 DROP TABLE IF EXISTS public.richieste_upload;
 
 CREATE TABLE IF NOT EXISTS public.richieste_upload

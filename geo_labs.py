@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -16,9 +17,9 @@ from fastapi import FastAPI, UploadFile, File, Query
 
 from importerLayers import delete_layers, publish_layers
 from richieste_dal import RichiesteDAL
-from utility import unzip, get_map_files, get_md5
+from utility import unzip, get_md5
 from utility_R import invoke_R
-from utility_postgres import shapeFile2Postgis, load_dbf, load_shapefile
+from utility_postgres import shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
 import pandas as pd
 import geopandas as gd
 
@@ -47,13 +48,13 @@ async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare S
             for file in files:
                 file_path=os.path.join(root, file)
                 if file.endswith('.dbf'):
-                    list_files_dbf.append(file_path,file)
+                    list_files_dbf.append([file_path,file])
                     table_name=file.split(".")[0]
                 if file.endswith('.shp'):
-                    list_files_shp.append(file_path,file)
+                    list_files_shp.append([file_path,file])
         list_table_shp=[file[:-4] for file_path,file in list_files_dbf] 
         list_create =[]
-        list_files_dbf =[(file_path,file) for file_path,file in list_files_dbf if file[1][:-4] not in list_table_shp]   
+        list_files_dbf =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp]   
         for file_path,file in list_files_dbf:
             table_name = file[:-4]
             if table_name not in list_table_shp:
@@ -68,7 +69,7 @@ async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare S
                 list_create.append(map_create)
         for file_path,file in list_files_shp:
             table_name = file[:-4]
-            if table_name not in list_table_shp:
+            if table_name in list_table_shp:
                 res, columns, gdf, columns_list, start_time, elapsed,map_create = load_shapefile(file_path,table_name,group_id,srid)
                 map_results[table_name]={
                     "result":res,
@@ -77,8 +78,8 @@ async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare S
                     "elapsed":elapsed,
                     "map_create":map_create
                 }
-        for map_create in map_create:
-            list_create.append(map_create)        
+                list_create.append(map_create)
+        for map_create in list_create:
             for col, tipo in map_create.items():
                 column_response = ColumnResponse(
                     filename=file,
@@ -89,7 +90,7 @@ async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare S
                     importing=True
                 )
                 mapping_fields.data.append(column_response)
-        list_files=list(map_create.keys())
+        list_files=[os.path.join(file_path,file) for file_path,file in list_files_dbf+list_files_shp]
         async with async_session_Db() as sessionpg:
             async with sessionpg.begin():
                 request_dal = RichiesteDAL(sessionpg)
@@ -107,28 +108,27 @@ async def upload_zip_file(group_id:str,srid:int=Query(description="Selezionare S
                                                                 RESPONSE=mapping_fields.to_dict())
 
                 logger.info(f"OK WRITE ON SINFIDB, VALIDATION_ID: {res_PostGres.ID_SHAPE}")
-
-        return JSONResponse(content=str(mapping_fields.model_dump_json()), status_code=200)
+        resp= json.loads(mapping_fields.model_dump_json())
+        return JSONResponse(content=resp, status_code=200)
     except Exception as e:
         logger.error(f"Error:{e}", stack_info=True)
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/load_shapefile2postgis")
 async def shape_file2postgis(validation_id: int,
-                             shapefile_folder: str,
-                             group_id: None,
-                             conn_str_db: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'",
-                             schema: str = None,
+                             group_id: str,
+                             schema: str = "public",
                              srid_validation=Query(description="Selezionare SRID di riferimento",enum=LIST_SRID),
                              load_type="append",
                              mapping_fields: MapTables = None):
     try:
         #TODO:Update request
-        map_files=get_map_files(shapefile_folder)
-        result = shapeFile2Postgis(validation_id,map_files,shapefile_folder,mapping_fields,group_id,conn_str_db,schema=schema,
+        conn_str_db: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'",
+                            
+        map_files = get_map_files(validation_id)
+        result = shapeFile2Postgis(validation_id,map_files,mapping_fields,group_id,conn_str_db,schema=schema,
                                  srid=srid_validation,load_type=load_type)
-        layers = publish_layers(group_id,layers)
-        return JSONResponse(content={"result": result,"esito":"OK","layers":layers}, status_code=201)
+        return JSONResponse(content={"result": result,"esito":"OK","layers":result}, status_code=201)
     except Exception as e:
         logger.error(f"Error:{e}", stack_info=True)
         print(f"Error:{e}")

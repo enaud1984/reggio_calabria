@@ -5,7 +5,7 @@ from multiprocessing.pool import ThreadPool
 
 import psycopg2
 
-from config import engine_Db_no_async, APP, CHUNCKSIZE
+from config import POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_PORT, POSTGRES_SERVER, POSTGRES_USER, engine_Db_no_async, APP, CHUNCKSIZE
 import os
 
 from utility import find_specTable, change_column_types
@@ -123,7 +123,7 @@ class Dbf_wrapper(Dbf5):
             yield result
 
 
-def shapeFile2Postgis(validation_id,map_files,map_tables_edited,shapefile_folder,group_id,conn_str,schema=None,
+def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_str,schema=None,
                       engine=engine_Db_no_async, srid=None,load_type="append"):
     from importerLayers import publish_layers
     try:
@@ -134,23 +134,21 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,shapefile_folder
         map_results = {}
         list_dbf=[k for k, file_name in map_files.items() if file_name.endswith('.dbf')]
         list_shp=[k for k, file_name in map_files.items() if file_name.endswith('.shp')]
-        logger.info(f"Caricamento parallelo:{shapefile_folder}, dbf:{len(list_dbf)},shp:{len(list_shp)}")
+        logger.info(f"Caricamento parallelo:, dbf:{len(list_dbf)},shp:{len(list_shp)}")
         num_thread =int(len(map_files)/2)+1
         tasks=[]
         start_time_tot = get_now()
         pool = ThreadPool(num_thread)
         for k in list_dbf:
             file_name = map_files[k]
-            shapefile_path = os.path.join(shapefile_folder, file_name)
             table_name = k  # Usa il nome del file shape come nome della tabella
-            task = pool.apply_async(load_dbf_to_postgis, args=(shapefile_path,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
+            task = pool.apply_async(load_dbf_to_postgis, args=(file_name,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
             tasks.append(task)
 
         for k in list_shp:
             file_name = map_files[k]
-            shapefile_path = os.path.join(shapefile_folder, file_name)
             table_name = k  # Usa il nome del file shape come nome della tabella
-            task = pool.apply_async(load_shapefile_to_postgis, args=(shapefile_path, map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
+            task = pool.apply_async(load_shapefile_to_postgis, args=(file_name, map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
             tasks.append(task)
         pool.close()
         pool.join()
@@ -204,6 +202,19 @@ def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,sch
         logger.error(f"Error load_dbf_to_postgis table {table_name}: {e}",stack_info=True)
         elapsed=(get_now() - start_time).total_seconds()
         return False,table_name,elapsed
+
+
+def get_map_files(validation_id):
+    map_files={}
+    conn_str: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'",
+    with psycopg2.connect(conn_str) as conn:
+        with conn.cursor() as cur:
+            sql=f'SELECT "USERFILE" FROM public.richieste_upload where "ID_SHAPE"={validation_id};'
+            cur.execute(sql)
+            res = cur.fetchone()
+            map_files =  {file_name[:-4].lower():file_name for file_name in res[0]}
+    return map_files
+
 
 def load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine):
 
