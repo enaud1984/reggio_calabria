@@ -7,7 +7,8 @@ from sqlalchemy.pool import NullPool
 
 Base = declarative_base()
 APP = os.getenv("APP","geo_labs:app")
-R_HOME = os.getenv("R_HOME", "C:\\Users\\gventura\\AppData\\Local\\Programs\\R\\R-4.3.3")
+ProgramFiles =os.getenv("APP")
+R_HOME = os.getenv("R_HOME", os.path.join(ProgramFiles,"R-4.4.0") if ProgramFiles is not None else "C:\\Users\\gventura\\AppData\\Local\\Programs\\R\\R-4.3.3")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
 POSTGRES_SERVER = os.getenv("POSTGRES_SERVER", "127.0.0.1")
