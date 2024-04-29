@@ -107,18 +107,15 @@ async def shape_file2postgis(validation_id: int,
         traceback.print_exc()
         return JSONResponse(content={"esito":"KO","error": str(e)}, status_code=501)
 
-#TODO: servizio elenco shapecaricati GET_SHAPES
-"""
-@app.get("/requests",tags=["Worker","Director"],responses=get_all_requests_responses)
-async def get_all_requests_director(stato:str=Query(description="Selezionare lo stato",enum=LIST_STATUS,default=None),validation_id:int=None,group_id=None,
-                                    skip: int = 0, limit: int = 100) :
+
+@app.get("/requests")
+async def get_all_requests(validation_id:int=None,group_id=None,skip: int = 0, limit: int = 100) :
     '''_Summary_<br>
         _Lista delle richieste storiche<br>
 
     __Args:__<br>
         <li>__stato__ (StateProcess): _stato di destinazione del processo di __validazione__ </li>
         <li>__validation_id_ (id, optional): __id__ della richiesta  che effettua il caricamento_. Defaults to Null.</li>
-        <li>__group_id__ (str, optional): _ente per il quale viene effettuato la validazione_. Defaults (null,max_length=64).</li>
         <li>__skip__ (int, optional): _parametro della paginazione per saltare le righe_. Defaults to 0.</li>
         <li>__limit__ (int, optional): _parametro di paginazione per avere un limite sul numero di record restituiti _. Defaults to 100.</li>
 
@@ -126,18 +123,16 @@ async def get_all_requests_director(stato:str=Query(description="Selezionare lo 
         _type_: _json_
         lista delle richieste al director o del worker
     '''
+
     try:
         ret = None
-        async with async_session_sinfiDb() as session:
+        async with async_session_Db() as session:
             async with session.begin():
-                request_dal = RequestValidatorDAL(session, True)
-                ret = await request_dal.get_all_requests(validation_id, stato,group_id, skip, limit)
-        print("ret")
+                request_dal = RichiesteDAL(session)
+                ret = await request_dal.get_all_requests(validation_id, group_id, skip, limit)
         return ret
     except Exception as e:
-        print("Error",e)
-        logger.error(f"Error:{e} group_id:{group_id}", stack_info=True)
-
+        logger.error(f"Error:{e}", stack_info=True)
         return JSONResponse(content={"error": str(e),"group_id":group_id,
                                      "id":id
                                      },

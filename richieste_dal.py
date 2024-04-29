@@ -31,20 +31,15 @@ class RichiesteDAL:
 
 
 
-    async def get_all_requests(self, id=None, stato=None, group_id=None, skip: int = 0, limit: int = 100):
+    async def get_all_requests(self, id=None, group_id=None, skip: int = 0, limit: int = 100):
         stmt = select(self.model)
-        if group_id is not None and stato is not None:
+        if group_id is not None and id is not None:
             q = await self.db_session.execute(
-                stmt.where(self.model.STATO == stato and self.model.GROUP_ID == group_id).offset(skip).limit(limit))
-        elif id is None and stato is not None:
-            q = await self.db_session.execute(stmt.where(self.model.STATO == stato).offset(skip).limit(limit))
-        elif id is not None:
-            q = await self.db_session.execute(stmt.where(self.model.ID == int(id)).offset(skip).limit(limit))
-        elif group_id is not None:
+                stmt.where(self.model.ID == id and self.model.GROUP_ID == group_id).offset(skip).limit(limit))
+        elif id is None and group_id is not None:
             q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == group_id).offset(skip).limit(limit))
-        else:
-            # db = SessionLocal()
-            q = await self.db_session.execute(stmt.offset(skip).limit(limit).order_by(self.model.ID))
+        elif group_id is None and id is not None:
+            q = await self.db_session.execute(stmt.where(self.model.ID == id).offset(skip).limit(limit))
         return q.scalars().all()
 
     async def get_request(self, id=None):
