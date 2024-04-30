@@ -43,6 +43,7 @@ def analyze_file(file,file_path,group_id,load_func,is_shape=False,srid=None):
             "table_name":table_name, 
             "columns_list":columns_list, 
             "elapsed":elapsed,
+            "srid": None,
             "map_create":map_create
         }
     info = namedtuple("Info",list(info.keys()))(**info)

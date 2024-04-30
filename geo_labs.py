@@ -76,19 +76,21 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
             for file_path,file in list_files_spec:
                 table_name,map_create,info = analyze_file(file,file_path,group_id,load_func,is_shape,None)
                 map_results[table_name]=info
-                list_create.append([None,map_create,info])
+                list_create.append([map_create,info])
             
-        for srid,map_create,info in list_create:
+        for map_create,info in list_create:
             for col, tipo in map_create.items():
                 column_response = ColumnResponse(
                     filename=info.file,
                     table=info.table_name,
                     column=col,
                     tipo=tipo,
-                    srid=srid,
                     column_name=col,
                     importing=True
                 )
+                if info.srid is not None:
+                    column_response.srid=info.srid
+                    
                 mapping_fields.data.append(column_response)
         list_files=[file_path for file_path,file in list_files_dbf+list_files_shp]
         async with async_session_Db() as sessionpg:
