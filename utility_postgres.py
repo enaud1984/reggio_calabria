@@ -433,3 +433,22 @@ def load_shapefile(shapefile_path,table_name,group_id,srid):
     map_create, columns, srid, columns_list = get_columns_shapefile(shapefile_path,table_name,gdf,srid)
     elapsed = (get_now() - start_time).total_seconds()
     return True, columns, gdf, columns_list, start_time, elapsed,map_create
+
+def create_schema(group_id,conn_str=f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'"):
+    sql =f"select count(*) from information_schema.schemata where schema_name='{group_id}'"
+    db = psycopg2.connect(conn_str)
+    logger.info(f"start {conn_str}")
+    res=0
+    with db.cursor() as cursor:
+        cursor.execute(sql)
+        results = cursor.fetchall()
+        if len(results)>0:
+            res=results[0][0]
+        if res<1:
+            sql=f"CREATE SCHEMA IF NOT EXISTS {group_id} AUTHORIZATION postgres;\n"
+            sql+=f"COMMENT ON SCHEMA {group_id} IS 'standard {group_id} schema';\n"
+            sql+=f"GRANT ALL ON SCHEMA {group_id} TO PUBLIC;\n"
+            sql+=f"GRANT ALL ON SCHEMA {group_id} TO postgres;\n"
+            cursor.execute(sql)
+            db.commit()
+        logger.info(f"Created schema {group_id} on Db:{conn_str}")

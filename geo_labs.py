@@ -20,7 +20,7 @@ from importerLayers import delete_layers, publish_layers
 from richieste_dal import RichiesteUpload, RichiesteLoad, RichiesteModel, RichiesteExecution
 from utility import analyze_file, unzip, get_md5
 from utility_R import invoke_R
-from utility_postgres import load_csv_or_excel, shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
+from utility_postgres import create_schema, load_csv_or_excel, shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
 import pandas as pd
 import geopandas as gd
 
@@ -124,6 +124,9 @@ async def load_shapefile2postgis(validation_id: int,
                                  load_type=Query(description="Selezionare modalita caicamento tabella",enum=LIST_LOAD),
                                  mapping_fields: MapTables = None):
     try:
+        schema  =schema.lower() if schema is not None else "public"
+        if schema!='public':
+            create_schema(schema)
         logger.info(f"Load Shape files to PostGis...validation_id: {validation_id},group_id: {group_id},schema: {schema},srid_validation:{srid_validation}")
         async with async_session_Db() as sessionpg:
             async with sessionpg.begin():
