@@ -193,7 +193,7 @@ def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,sch
     try:
         #import pandas as pd
         start_time = get_now()
-        map_create, columns, _, columns_list,df=load_dbf(shapefile_path,table_name,group_id,srid_validation)
+        map_create, columns, _, columns_list,df,elapsed=load_dbf(shapefile_path,table_name,group_id,srid_validation)
         json_types=find_specTable(map_tables_edited,table_name)
         df=change_column_types(df, json_types)
         res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine)

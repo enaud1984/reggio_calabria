@@ -60,19 +60,19 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
             table_name = file[:-4]
             if table_name not in list_table_shp:
                 map_create, columns, _, columns_list,df,elapsed = load_dbf(file_path, table_name,group_id,None)
-                map_results[table_name]={
+                map_results[table_name] = {
                     "columns": columns,
                     "columns_list": columns_list,
                     "elapsed": elapsed,
                     "map_create": map_create
                 }
-                list_create.append([None, map_create])
+                list_create.append([None, map_create,file,table_name])
 
         for file_path,file in list_files_shp:
             table_name = file[:-4]
             if table_name in list_table_shp:
                 res, columns, gdf, columns_list, start_time, elapsed,map_create = load_shapefile(file_path,table_name,group_id,None)
-                srid  = gdf.crs.to_epsg()
+                srid = gdf.crs.to_epsg()
                 map_results[table_name]={
                     "columns":columns, 
                     "columns_list":columns_list, 
@@ -80,10 +80,9 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                     "srid":srid,
                     "map_create":map_create
                 }
-                list_create.append([srid,map_create])
-        for srid,map_create in list_create:
+                list_create.append([srid,map_create,file,table_name])
+        for srid,map_create,file,table_name in list_create:
             for col, tipo in map_create.items():
-                
                 column_response = ColumnResponse(
                     filename=file,
                     table=table_name,
