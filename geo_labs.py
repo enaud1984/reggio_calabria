@@ -26,8 +26,7 @@ import geopandas as gd
 
 
 app = FastAPI(summary= "Applicativo per la gestione di file shape",
-              description="""
-        """,
+              description=""" Geo_labs laboratorio condiviso""",
               version= "0.0.1")
 
 logger = logging.getLogger(APP)
@@ -51,7 +50,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
             shutil.copyfileobj(file_zip.file, buffer)
         #unzip file
         shapefile_folder=unzip(file_path_zip,PATH_TO_UPLOAD)
-        logger.info("Uploading shapefile and unzip")
+        logger.info(f"Uploading shapefile and unzip,group_id:{group_id}")
         mapping_fields = MapTables(data=[])
         list_files_dbf=[]
         list_files_shp=[]
@@ -131,7 +130,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         resp= json.loads(mapping_fields.model_dump_json())
         return JSONResponse(content=resp, status_code=200)
     except Exception as e:
-        logger.error(f"Error:{e}", stack_info=True)
+        logger.error(f"Error:{e},group_id:{group_id}", stack_info=True)
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/load_shapefile2postgis")
@@ -142,7 +141,7 @@ async def load_shapefile2postgis(validation_id: int,
                                  load_type=Query(description="Selezionare modalita caicamento tabella",enum=LIST_LOAD),
                                  mapping_fields: MapTables = None):
     try:
-        logger.info("Load Shape files to PostGis...")
+        logger.info(f"Load Shape files to PostGis...validation_id: {validation_id},group_id: {group_id},schema: {schema},srid_validation:{srid_validation}")
         async with async_session_Db() as sessionpg:
             async with sessionpg.begin():
                 request_dal = RichiesteLoad(sessionpg)
@@ -163,14 +162,14 @@ async def load_shapefile2postgis(validation_id: int,
         #TODO: inserire result in db con update in modo da poterlo usare dopo?
         return JSONResponse(content={"result": result,"esito":"OK","layers":result}, status_code=201)
     except Exception as e:
-        logger.error(f"Error:{e}", stack_info=True)
+        logger.error(f"Error:{e},validation_id: {validation_id},group_id:{group_id}", stack_info=True)
         print(f"Error:{e}")
         traceback.print_exc()
         return JSONResponse(content={"esito":"KO","error": str(e)}, status_code=501)
 
 
 @app.get("/get_all_upload")
-async def get_all_upload(id_shape:int=None,group_id=None,skip: int = 0, limit: int = 100) :
+async def get_all_upload(id_shape:int=None,group_id:str=None,skip: int = 0, limit: int = 100) :
     '''_Summary_<br>
         _Lista delle richieste storiche<br>
 
@@ -192,7 +191,7 @@ async def get_all_upload(id_shape:int=None,group_id=None,skip: int = 0, limit: i
                 ret = await request_dal.get_all_requests(id_shape, group_id, skip, limit)
         return ret
     except Exception as e:
-        logger.error(f"Error:{e}", stack_info=True)
+        logger.error(f"Error:{e},id_shape: {id_shape},group_id:{group_id}", stack_info=True)
         return JSONResponse(content={"error": str(e),"group_id":group_id,
                                      "id":id_shape
                                      },
@@ -221,13 +220,13 @@ async def get_all_shapes(id_shape:int=None,group_id=None,skip: int = 0, limit: i
                 ret = await request_dal.get_all_requests(id_shape, group_id, skip, limit)
         return ret
     except Exception as e:
-        logger.error(f"Error:{e}", stack_info=True)
+        logger.error(f"Error:{e},id_shape: {id_shape},group_id:{group_id}", stack_info=True)
         return JSONResponse(content={"error": str(e),"group_id":group_id,
                                      "id":id_shape
                                      },
                             status_code=501)
 @app.delete("/delete_shape")
-async def delete_shape(ID_SHAPE: int,group_id):
+async def delete_shape(id_shape: int,group_id:str):
     """_summary_<br>
                 cancellazione funzione<br>
          __Args:__<br>
@@ -241,16 +240,16 @@ async def delete_shape(ID_SHAPE: int,group_id):
         async with async_session_Db() as session:
             async with session.begin():
                 request_dal = RichiesteLoad(session)
-                ret = await request_dal.get_request(ID_SHAPE=ID_SHAPE)
+                ret = await request_dal.get_request(ID_SHAPE=id_shape)
                 #cancellazione folder da to_upload
                 shutil.rmtree(ret.PATH_SHAPEFILE)
                 #cancellazione layer pubblicati
                 delete_layers(group_id,[l.split(".")[0] for l in ret.USERFILE])
-                return await request_dal.del_request(ID_SHAPE=ID_SHAPE)
+                return await request_dal.del_request(ID_SHAPE=id_shape)
     except Exception as e:
-        logger.error(f"Error:{e}", stack_info=True)
+        logger.error(f"Error:{e},id_shape: {id_shape},group_id:{group_id}", stack_info=True)
         return JSONResponse(content={"error": str(e),"group_id":group_id,
-                                     "id":ID_SHAPE
+                                     "id":id_shape
                                      },
                             status_code=501)
 
@@ -265,7 +264,7 @@ async def upload_lib(group_id, file_zip: UploadFile = File(...)):
 @app.post("/upload_model")
 async def upload_model(group_id, code_str: str):
     try:
-        ID_MODEL=None
+        id_model=None
         async with async_session_Db() as session:
             async with session.begin():
                 request_dal = RichiesteModel(session)
@@ -276,7 +275,8 @@ async def upload_model(group_id, code_str: str):
                                                        CODE=code_str,
                                                        PARAMS=None, #risposta di una load precedente per ID_SHAPE? ci vuole?
                                                        LIBRARY=False)
-                ID_MODEL = res.ID_MODEL
+                id_model = res.ID_MODEL
+        logger.info(f"upload_model del modello group_id:{group_id},ID_MODEL:{id_model}, code_str: {code_str}")
     except Exception as e:
         logger.error(f"Error:{e}", stack_info=True)
         return JSONResponse(content={"error": str(e),"group_id":group_id,
@@ -292,7 +292,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                        model_id_code=None):
 
     from config import engine_Db_no_async,CHUNCKSIZE,connection_string
-    logger.info("Esecuzione del modello")
+    logger.info(f"Esecuzione del modello group_id:{group_id}, shape_id: {shape_id}, language:{language}, mapping_output:  {mapping_output}")
     async with async_session_Db() as session:
         async with session.begin():
             request_dal = RichiesteExecution(session)
@@ -317,7 +317,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
 
     # Analisi del codice alla ricerca dei parametri %param1%
     params = re.findall(r'%([^%]+)%', code)
-    logger.info(f"Parametri trovati nel codice: {params}")
+    logger.info(f"id_execution:{id_execution},Parametri trovati nel codice: {params}")
     # Sostituzione dei parametri con i valori forniti dall'utente
     for param in params:
         value = params[param]
@@ -357,6 +357,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
             layers = publish_layers(group_id,layers)
 
         except Exception as e:
+            logger.error(f"Error:{e},id_execution:{id_execution}", stack_info=True)
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
     elif language == "r":
         try:
@@ -381,6 +382,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
             results={}
             #return JSONResponse(status_code=200, content={"result": result})
         except Exception as e:
+            logger.error(f"Error:{e},id_execution:{id_execution}", stack_info=True)
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
 
     async with async_session_Db() as session:
