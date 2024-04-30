@@ -6,14 +6,14 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 from datetime import datetime
 #from config import DEFAULT_LOAD_TYPE, DEFAULT_STATUS
-from richieste_entity import RequestEntityUpload
+from richieste_entity import RequestEntityUpload, RequestEntityLoad
 
 
 def sqlalchemy_to_dict(obj):
     return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
 
 
-class RichiesteDAL:
+class RichiesteUpload:
     def __init__(self, db_session: Session):
         self.db_session = db_session
         self.model = RequestEntityUpload
@@ -45,26 +45,6 @@ class RichiesteDAL:
         q = await self.db_session.execute(stmt.where(self.model.ID == int(id)))
         return q.first()
 
-    async def get_host_worker(self, group_id=None):
-        stmt = select(self.model.HOST_WORKER)
-        if group_id:
-            result = await self.db_session.execute(stmt.where(self.model.GROUP_ID == group_id and self.model.HOST_WORKER is not None))
-        else:
-            result = await self.db_session.execute(stmt.where(self.model.HOST_WORKER is not None))
-        host_workers = result.scalar()
-
-        if host_workers is not None:
-            return host_workers
-        else:
-            return []
-
-    async def get_host_worker_not_completed(self):
-        stmt = select(self.model.ID,self.model.HOST_WORKER,self.model.STATUS,self.model.QUEUED)
-
-        result = await self.db_session.execute(stmt.where(self.model.RUNNING == True and self.model.HOST_WORKER is not None).order_by(self.model.QUEUED,asc(self.model.QUEUED)))
-        host_worker_status_map = [{"ID": row[0],"HOST":row[1],"STATUS":row[2],"REQUEST_PARAMETER":row.REQUEST_PARAMETER,"QUEUED":row.QUEUED} for row in result]
-        host_worker_status_map=sorted(host_worker_status_map, key=lambda x: x['QUEUED'])
-        return host_worker_status_map
 
     async def del_request(self, ID_SHAPE: int):
         q = await self.db_session.execute(delete(self.model).where(self.model.ID_SHAPE == ID_SHAPE))
@@ -111,3 +91,27 @@ class RichiesteDAL:
         ret= await self.db_session.execute(q)
         return ret
 
+class RichiesteLoad:
+    def __init__(self, db_session: Session):
+        self.db_session = db_session
+        self.model = RequestEntityLoad
+
+    async def create_request(self, ID_SHAPE: int, DATE_LOAD:datetime,STATUS:str,
+                             GROUP_ID: str, REQUEST:dict={}):
+
+        new_request = self.model(ID_SHAPE=ID_SHAPE, DATE_LOAD=DATE_LOAD,STATUS=STATUS, GROUP_ID=GROUP_ID, REQUEST=REQUEST)
+
+        self.db_session.add(new_request)
+        await self.db_session.flush()
+        return new_request
+
+    async def get_all_requests(self, ID_SHAPE=None, GROUP_ID=None, skip: int = 0, limit: int = 100):
+        stmt = select(self.model)
+        if GROUP_ID is not None and ID_SHAPE is not None:
+            q = await self.db_session.execute(
+                stmt.where(self.model.ID_SHAPE == ID_SHAPE and self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
+        elif ID_SHAPE is None and GROUP_ID is not None:
+            q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
+        elif GROUP_ID is None and id is not None:
+            q = await self.db_session.execute(stmt.where(self.model.ID_SHAPE == ID_SHAPE).offset(skip).limit(limit))
+        return q.scalars().all()
