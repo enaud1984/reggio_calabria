@@ -18,9 +18,9 @@ from fastapi import FastAPI, UploadFile, File, Query
 
 from importerLayers import delete_layers, publish_layers
 from richieste_dal import RichiesteUpload, RichiesteLoad, RichiesteModel, RichiesteExecution
-from utility import unzip, get_md5
+from utility import analyze_file, unzip, get_md5
 from utility_R import invoke_R
-from utility_postgres import shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
+from utility_postgres import load_csv_or_excel, shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
 import pandas as pd
 import geopandas as gd
 
@@ -52,8 +52,9 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         shapefile_folder=unzip(file_path_zip,PATH_TO_UPLOAD)
         logger.info(f"Uploading shapefile and unzip,group_id:{group_id}")
         mapping_fields = MapTables(data=[])
-        list_files_dbf=[]
-        list_files_shp=[]
+        list_files_dbf = []
+        list_files_shp = []
+        list_files_csv = []
         map_results={}
         for root, dirs, files in os.walk(shapefile_folder):
             for file in files:
@@ -61,42 +62,22 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                 if file.endswith('.dbf'):
                     list_files_dbf.append([file_path,file])
                     table_name=file.split(".")[0]
-                if file.endswith('.shp'):
+                elif file.endswith('.shp'):
                     list_files_shp.append([file_path,file])
+                elif file.endswith(".csv") or  file.endswith(".xls") or file.endswith(".xlsx"):
+                    list_files_csv.append([file_path,file])
         list_table_shp=[file[:-4] for file_path,file in list_files_dbf] 
         list_create =[]
         list_files_dbf =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp]   
-
-        for file_path,file in list_files_dbf:
-            table_name = file[:-4]
-            if table_name not in list_table_shp:
-                map_create, columns, _, columns_list,df,elapsed = load_dbf(file_path, table_name,group_id,None)
-                info={
-                    "columns":columns,
-                    "file":file_path,
-                    "table_name":table_name, 
-                    "columns_list":columns_list, 
-                    "elapsed":elapsed,
-                    "map_create":map_create
-                }
+        list_files_csv =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp] 
+        map_files ={load_dbf:(False,list_files_dbf),load_csv_or_excel:(False,list_files_csv),load_shapefile:(True,list_files_shp)}
+        for load_func,cmd in map_files.items():
+            is_shape,list_files_spec = cmd
+            for file_path,file in list_files_spec:
+                table_name,map_create,info = analyze_file(file,file_path,group_id,load_func,is_shape,None)
                 map_results[table_name]=info
-                list_create.append([None,map_create,namedtuple("Info",list(info.keys()))(**info)])
-        for file_path,file in list_files_shp:
-            table_name = file[:-4]
-            if table_name in list_table_shp:
-                res, columns, gdf, columns_list, start_time, elapsed,map_create = load_shapefile(file_path,table_name,group_id,None)
-                srid  = gdf.crs.to_epsg()
-                info ={
-                    "file":file_path,
-                    "table_name":table_name, 
-                    "columns":columns, 
-                    "columns_list":columns_list, 
-                    "elapsed":elapsed,
-                    "srid":srid,
-                    "map_create":map_create
-                }
-                map_results[table_name]=info
-                list_create.append([srid,map_create,namedtuple("Info",list(info.keys()))(**info)])
+                list_create.append([None,map_create,info])
+            
         for srid,map_create,info in list_create:
             for col, tipo in map_create.items():
                 column_response = ColumnResponse(

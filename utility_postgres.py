@@ -204,6 +204,36 @@ def load_dbf(shapefile_path, table_name,group_id=None,srid=None):
     elapsed = (get_now() - start_time).total_seconds()
     return map_create, columns, _, columns_list,df,elapsed
 
+def load_csv_or_excel(shapefile_path, table_name,group_id=None,srid=None):
+    import pandas as pd
+    start_time = get_now()
+    if shapefile_path.endswith(".csv"):
+        df = pd.read_csv(shapefile_path)
+    elif shapefile_path.endswith(".xls") or shapefile_path.endswith(".xlsx"):
+        df = pd.read_excel(shapefile_path)
+    df = df.rename(columns=str.lower)
+    if group_id:
+        df['group_id']=group_id
+    map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid)
+    elapsed = (get_now() - start_time).total_seconds()
+    return map_create, columns, _, columns_list,df,elapsed
+ 
+def load_csv_or_excel_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
+    try:
+        #import pandas as pd
+        start_time = get_now()
+        map_create, columns, _, columns_list,df,elapsed=load_csv_or_excel(shapefile_path,table_name,group_id,srid_validation)
+        json_types=find_specTable(map_tables_edited,table_name)
+        df = change_column_types(df, json_types)
+        res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine)
+        elapsed=(get_now() - start_time).total_seconds()
+        logger.info(f"caricato {table_name},map_create:{map_create},elapsed:{elapsed}")
+        return res,table_name,elapsed
+    except Exception as e:
+        logger.error(f"Error load_dbf_to_postgis table {table_name}: {e}",stack_info=True)
+        elapsed=(get_now() - start_time).total_seconds()
+        return False,table_name,elapsed
+
 def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
     try:
         #import pandas as pd
@@ -219,7 +249,6 @@ def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,sch
         logger.error(f"Error load_dbf_to_postgis table {table_name}: {e}",stack_info=True)
         elapsed=(get_now() - start_time).total_seconds()
         return False,table_name,elapsed
-
 
 def get_map_files(validation_id,conn_str_db):
     map_files={}

@@ -1,3 +1,4 @@
+from collections import namedtuple
 import hashlib
 import logging
 import zipfile
@@ -19,6 +20,33 @@ def unzip(path_to_zip_file,directory_to_extract_to):
     logger.info(f"Unzipped {path_to_zip_file} to {directory_to_extract_to}")
     return os.path.join(directory_to_extract_to, folder_name)
 
+
+def analyze_file(file,file_path,group_id,load_func,is_shape=False,srid=None):
+    table_name = file[:-4]
+    if is_shape:
+        res, columns, gdf, columns_list, start_time, elapsed,map_create = load_func(file_path,table_name,group_id,None)
+        srid  = gdf.crs.to_epsg()
+        info ={
+                "file":file_path,
+                "table_name":table_name, 
+                "columns":columns, 
+                "columns_list":columns_list, 
+                "elapsed":elapsed,
+                "srid":srid,
+                "map_create":map_create
+        }
+    else:
+        map_create, columns, _, columns_list,df,elapsed = load_func(file_path, table_name,group_id,srid)
+        info={
+            "columns":columns,
+            "file":file_path,
+            "table_name":table_name, 
+            "columns_list":columns_list, 
+            "elapsed":elapsed,
+            "map_create":map_create
+        }
+    info = namedtuple("Info",list(info.keys()))(**info)
+    return table_name,map_create,info
 
 
 def find_specTable(map_tables,key):
