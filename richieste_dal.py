@@ -170,7 +170,7 @@ class RichiesteExecution:
         self.db_session = db_session
         self.model = RequestModelExecution
 
-    async def create_request(self, ID_EXECUTION ,DATE_EXECUTION ,STATUS,GROUP_ID,FK_MODEL,FK_SHAPE,FK_SHAPE_ZIP,PARAMS,RESULTS):
+    async def create_request(self, ID_EXECUTION ,DATE_EXECUTION ,STATUS,GROUP_ID,FK_MODEL,FK_SHAPE,PARAMS,RESULTS,MAPPING_OUTPUT):
 
         new_request = self.model(ID_EXECUTION = ID_EXECUTION,
                                  DATE_EXECUTION = DATE_EXECUTION,
@@ -178,8 +178,8 @@ class RichiesteExecution:
                                  GROUP_ID = GROUP_ID,
                                  FK_MODEL = FK_MODEL, #
                                  FK_SHAPE = FK_SHAPE,
-                                 FK_SHAPE_ZIP = FK_SHAPE_ZIP,
                                  PARAMS = PARAMS,
+                                 MAPPING_OUTPUT=MAPPING_OUTPUT,
                                  RESULTS = RESULTS)
 
         self.db_session.add(new_request)

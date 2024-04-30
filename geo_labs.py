@@ -17,7 +17,7 @@ from config import APP, LIST_LANG, LIST_LOAD, POSTGRES_SERVER, POSTGRES_PORT, PO
 from fastapi import FastAPI, UploadFile, File, Query
 
 from importerLayers import delete_layers, publish_layers
-from richieste_dal import RichiesteUpload, RichiesteLoad, RichiesteModel
+from richieste_dal import RichiesteUpload, RichiesteLoad, RichiesteModel, RichiesteExecution
 from utility import unzip, get_md5
 from utility_R import invoke_R
 from utility_postgres import shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
@@ -282,7 +282,19 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                        model_id_code=None):
 
     from config import engine_Db_no_async,CHUNCKSIZE,connection_string
+    async with async_session_Db() as session:
+        async with session.begin():
+            request_dal = RichiesteExecution(session)
 
+            res = await request_dal.create_request(ID_EXECUTION=None,
+                                                   DATE_EXECUTION=datetime.now(),
+                                                   STATUS="Execution MODEL",
+                                                   GROUP_ID=group_id,
+                                                   FK_MODEL=model_id_code if model_id_or_code == "Model_id" else None,
+                                                   FK_SHAPE=shape_id,
+                                                   PARAMS=params,
+                                                   MAPPING_OUTPUT=mapping_output,
+                                                   RESULTS=RESULTS)
     code=None
     if model_id_or_code == "Testo":
         code = model_id_code

@@ -126,8 +126,8 @@ class RequestModelExecution(Base):
     GROUP_ID = Column(String, nullable=False) # group id
     FK_MODEL = Column(Integer, nullable=False) # fk ad un modello
     FK_SHAPE = Column(Integer, nullable=False) # fk ad un load su geoServer
-    FK_SHAPE_ZIP = Column(Integer, nullable=False) # fk ad uno zip
     PARAMS = Column(JSON, nullable=True)  #json della richiesta precedente editato
+    MAPPING_OUTPUT = Column(JSON, nullable=True)
     RESULTS = Column(JSON, nullable=True)  #json della richiesta precedente editato
 
     def __str__(self):
@@ -140,6 +140,7 @@ class RequestModelExecution(Base):
                     f'"FK_SHAPE"="{self.FK_SHAPE}",'
                     f'"FK_SHAPE_ZIP"="{self.FK_SHAPE_ZIP}",'
                     f'"PARAMS"="{self.PARAMS}",'
+                    f'"MAPPING_OUTPUT"="{self.MAPPING_OUTPUT}",'
                     f'"RESULTS"="{self.RESULTS}",'
                     "}}").replace('"None"',"null").replace("=",":")
 
@@ -153,6 +154,7 @@ class RequestModelExecution(Base):
             "FK_SHAPE":self.FK_SHAPE,
             "FK_SHAPE_ZIP":self.FK_SHAPE_ZIP,
             "PARAMS":self.PARAMS,
+            "MAPPING_OUTPUT":self.MAPPING_OUTPUT,
             "RESULTS":self.RESULTS,
         }
         }
