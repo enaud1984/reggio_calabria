@@ -305,7 +305,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
             mapping_shape = {}
             for tablename,type_dataframe in mapping_shape.items():
                 if type_dataframe=="gd.GeoDataFrame":
-                    gdf:gd.GeoDataFrame = gd.read_postgis(f"{group_id}.{tablename}",connection_string)
+                    gdf: gd.GeoDataFrame = gd.read_postgis(f"{group_id}.{tablename}",connection_string)
                     global_df[tablename] = gdf
                 if type_dataframe=="pd.DataFrame":
                     df:pd.DataFrame = pd.read_sql_table(f"{group_id}.{tablename}",connection_string)
