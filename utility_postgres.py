@@ -179,13 +179,15 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
 
 
 def load_dbf(shapefile_path, table_name,group_id=None,srid=None):
+    start_time = get_now()
     dbf = Dbf_wrapper(shapefile_path)
     df = dbf.to_dataframe()
     df = df.rename(columns=str.lower)
     if group_id:
         df['group_id']=group_id
     map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid)
-    return map_create, columns, _, columns_list,df
+    elapsed = (get_now() - start_time).total_seconds()
+    return map_create, columns, _, columns_list,df,elapsed
 
 def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
     try:
