@@ -254,7 +254,7 @@ def get_map_files(validation_id,conn_str_db):
     map_files={}
     with psycopg2.connect(conn_str_db) as conn:
         with conn.cursor() as cur:
-            sql=f'SELECT "USERFILE" FROM public.richieste_upload where "ID_SHAPE"={validation_id};'
+            sql=f'SELECT "USERFILE" FROM geo_labs.richieste_upload where "ID_SHAPE"={validation_id};'
             cur.execute(sql)
             res = cur.fetchone()
             map_files =  {os.path.split(file_name)[-1][:-4].lower():file_name for file_name in res[0]}

@@ -1,4 +1,4 @@
--- Table: public.richieste_upload
+-- Table: geo_labs.richieste_upload
 CREATE EXTENSION postgis;
 
 DROP TABLE IF EXISTS geo_labs.richieste_upload;
