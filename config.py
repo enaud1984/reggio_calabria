@@ -8,8 +8,14 @@ from sqlalchemy.pool import NullPool
 Base = declarative_base()
 APP = os.getenv("APP","geo_labs:app")
 ProgramFiles =os.getenv("ProgramFiles")
-IMIR=False
-R_HOME = os.getenv("R_HOME", os.path.join(ProgramFiles,"R","R-4.4.0") if ProgramFiles is not None and IMIR else "C:\\Users\\gventura\\AppData\\Local\\Programs\\R\\R-4.3.3")
+LOCALAPPDATA =os.getenv("LOCALAPPDATA")
+R_VERSION = os.getenv("R_VERSION","R-4.3.3")#"R-4.4.0"
+r_path = os.path.join(ProgramFiles,"R",R_VERSION)
+real_path = r_path if os.path.isdir(r_path) else os.path.join(LOCALAPPDATA,"Programs","R",R_VERSION)
+if os.path.isdir(r_path):
+  R_HOME = os.getenv("R_HOME", real_path)
+else:
+  R_HOME = os.getenv("R_HOME")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
 POSTGRES_SERVER = os.getenv("POSTGRES_SERVER", "127.0.0.1")
