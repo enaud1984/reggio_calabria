@@ -124,7 +124,7 @@ class Dbf_wrapper(Dbf5):
 
 
 def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_str,schema=None,
-                      engine=engine_Db_no_async, srid=None,load_type="append",multithread=False):
+                      engine=engine_Db_no_async, srid=None,load_type="append",multithread=True):
     from importerLayers import publish_layers
     try:
         if not schema:
@@ -194,19 +194,21 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
 
 
 def load_dbf(shapefile_path, table_name,group_id=None,srid=None):
+    start_time = get_now()
     dbf = Dbf_wrapper(shapefile_path)
     df = dbf.to_dataframe()
     df = df.rename(columns=str.lower)
     if group_id:
         df['group_id']=group_id
     map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid)
-    return map_create, columns, _, columns_list,df
+    elapsed = (get_now() - start_time).total_seconds()
+    return map_create, columns, _, columns_list,df,elapsed
 
 def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
     try:
         #import pandas as pd
         start_time = get_now()
-        map_create, columns, _, columns_list,df=load_dbf(shapefile_path,table_name,group_id,srid_validation)
+        map_create, columns, _, columns_list,df,elapsed=load_dbf(shapefile_path,table_name,group_id,srid_validation)
         json_types=find_specTable(map_tables_edited,table_name)
         df = change_column_types(df, json_types)
         res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine)

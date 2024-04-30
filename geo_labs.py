@@ -56,6 +56,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         list_table_shp=[file[:-4] for file_path,file in list_files_dbf] 
         list_create =[]
         list_files_dbf =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp]   
+
         for file_path,file in list_files_dbf:
             table_name = file[:-4]
             if table_name not in list_table_shp:
