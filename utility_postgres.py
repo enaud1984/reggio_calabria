@@ -5,7 +5,7 @@ from multiprocessing.pool import ThreadPool
 
 import psycopg2
 
-from config import POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_PORT, POSTGRES_SERVER, POSTGRES_USER, engine_Db_no_async, APP, CHUNCKSIZE
+from config import LIST_LOAD, POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_PORT, POSTGRES_SERVER, POSTGRES_USER, engine_Db_no_async, APP, CHUNCKSIZE
 import os
 
 from utility import find_specTable, change_column_types
@@ -233,8 +233,17 @@ def get_map_files(validation_id,conn_str_db):
 
 
 def load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine):
-
-    if load_type=="strict":  #caso in cui si ricrea la tabella
+    sql =f"select count(*) from pg_tables where schemaname='{schema}' and tablename='{table_name}'"        
+    with psycopg2.connect(conn_str) as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            r = cur.fetchone()
+            if r and r[0]==0 and load_type!=LIST_LOAD[1]:
+                load_type = LIST_LOAD[1]
+                logger.warning(f"Table  {schema}.{table_name} not found forced strict")
+               
+               
+    if load_type==LIST_LOAD[1]:  #caso in cui si ricrea la tabella
         #columns=columns.replace("GEOMETRY","geometry")
         create_table_query = f"CREATE TABLE IF NOT EXISTS {schema}.{table_name} ({columns}"
         with psycopg2.connect(conn_str) as conn:
@@ -269,9 +278,9 @@ def load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_
                 conn.commit()
                 # Caricamento dei dati nella tabella
                 if hasattr(df,"to_postgis"):
-                    df.to_postgis(table_name, engine, if_exists='replace', index=False, schema=schema,chunksize=CHUNCKSIZE)
+                    df.to_postgis(table_name, engine, if_exists=load_type, index=False, schema=schema,chunksize=CHUNCKSIZE)
                 else:
-                    df.to_sql(table_name, engine, if_exists='replace', index=False, schema=schema,chunksize=CHUNCKSIZE)
+                    df.to_sql(table_name, engine, if_exists=load_type, index=False, schema=schema,chunksize=CHUNCKSIZE)
 
                 engine.dispose()
                 return True
@@ -279,13 +288,13 @@ def load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_
         table_name_temp =f"temp_{table_name}"
         create_table_query = f"CREATE TABLE IF NOT EXISTS {schema}.{table_name_temp} ({columns}"
         if hasattr(df,"to_postgis"):
-            df.to_postgis(table_name_temp, engine, if_exists='replace', index=False, schema=schema,chunksize=CHUNCKSIZE)
+            df.to_postgis(table_name_temp, engine, if_exists=load_type, index=False, schema=schema,chunksize=CHUNCKSIZE)
         else:
-            df.to_sql(table_name_temp, engine, if_exists='replace', index=False, schema=schema,chunksize=CHUNCKSIZE)
+            df.to_sql(table_name_temp, engine, if_exists=load_type, index=False, schema=schema,chunksize=CHUNCKSIZE)
         engine.dispose()
         join_columns=','.join(columns_list)
         join_temp_columns=','.join([f"{table_name_temp}.{k}" for k in columns_list])
-        join_excluded=','.join([f"{k} = EXCLUDED.{k}" for k in columns_list if k not in ["class_id","class_ref","segmentid","groupid"]])
+        join_excluded=','.join([f"{k} = EXCLUDED.{k}" for k in columns_list if k not in ["id"]])
 
         upsert_query = f"""
             INSERT INTO {table_name} ({join_columns})
