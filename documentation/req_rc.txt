@@ -12,7 +12,8 @@
         mapping_fields)  --> carica in tabella gli shapefile
 
    Response:	{"data":[{"filename":"INFR_RT.dbf","schema":"public","table":"INFR_RT","column":"id","type":"int","column_name":"id","import":true,isVariable:true},
-   			             {"INFR_EXT_L.shp":{"id":"int","nome":"str","geom":"geometry"}}],
+   			             {"filename":"INFR_RT.dbf","schema":"public","table":"INFR_RT","column":"id","type":"int","column_name":"id","import":true,isVariable:true},
+   			             ],
    	            }
 
 3 - UPLOAD MODELLO PYTHON --> nella cartella modelli

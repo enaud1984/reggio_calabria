@@ -149,7 +149,7 @@ async def load_shapefile2postgis(validation_id: int,
         if srid_validation=="auto":
             srid_validation = None
         result = shapeFile2Postgis(validation_id,map_files,mapping_fields,group_id,conn_str_db,schema=schema,
-                                 srid=srid_validation,load_type=load_type)
+                                   srid=srid_validation,load_type=load_type)
         #TODO: inserire result in db con update in modo da poterlo usare dopo?
         return JSONResponse(content={"result": result,"esito":"OK","layers":result}, status_code=201)
     except Exception as e:
@@ -318,15 +318,28 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
         try:
             variables = {}
             global_df = {}
-            mapping_shape = {} #prendere i nomi delle tabelle e il tipo dal db
+            async with async_session_Db() as session:
+                async with session.begin():
+                    request_dal = RichiesteLoad(session)
+                    res = await request_dal.get_request(ID_SHAPE=shape_id)
+                    mapping_fields = res.REQUEST
+
+            mapping_shape = {}
+            for col in mapping_fields["data"]:
+                filename = col["filename"]
+                if mapping_shape.get(filename) is None:
+                    type_dataframe = "pd.DataFrame" if filename.endswith(".shp") else "gd.DataFrame"
+                    mapping_shape[filename] = type_dataframe
+
+            #prendere i nomi delle tabelle e il tipo dal db
             for tablename,type_dataframe in mapping_shape.items():
-                if type_dataframe=="gd.GeoDataFrame":
-                    gdf: gd.GeoDataFrame = gd.read_postgis(f"{group_id}.{tablename}",connection_string)
+                if type_dataframe == "gd.GeoDataFrame":
+                    gdf: gd.GeoDataFrame = gd.read_postgis(f"{group_id}.{tablename}", connection_string)
                     global_df[tablename] = gdf
-                if type_dataframe=="pd.DataFrame":
-                    df:pd.DataFrame = pd.read_sql_table(f"{group_id}.{tablename}",connection_string)
+                if type_dataframe == "pd.DataFrame":
+                    df:pd.DataFrame = pd.read_sql_table(f"{group_id}.{tablename}", connection_string)
                     global_df[tablename] = df
-                
+
             exec(code, global_df, variables)
             layers = []
             tables = []    
@@ -345,11 +358,11 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                     tables.append(table_name)
             #TODO:pubblicazione su geoserver
             layers = publish_layers(group_id,layers)
-
         except Exception as e:
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
     elif language == "r":
         try:
+            #TODO: manca la parte del popolamento di global_df:[]
             result,variables=invoke_R(code)
             layers = []
             tables = []
@@ -375,7 +388,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
 
     async with async_session_Db() as session:
         async with session.begin():
-            res = RichiesteExecution(session)
+            request_dal = RichiesteExecution(session)
             res = await request_dal.update_request(ID_EXECUTION=id_execution,
                                                    RESULTS=results)
     return JSONResponse(status_code=200, content={"layers": layers,"results":results})
