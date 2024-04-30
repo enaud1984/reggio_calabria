@@ -205,3 +205,10 @@ class RichiesteExecution:
     async def del_request(self, ID_EXECUTION: int):
         q = await self.db_session.execute(delete(self.model).where(self.model.ID_EXECUTION == ID_EXECUTION))
         return q
+
+    async def update_request(self, ID_EXECUTION: int, RESULTS:dict):
+        q = update(self.model).where(self.model.ID_EXECUTION == ID_EXECUTION)
+        q = q.values(RESULTS=RESULTS)
+        q.execution_options(synchronize_session="fetch")
+        ret= await self.db_session.execute(q)
+        return ret

@@ -282,6 +282,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                        model_id_code=None):
 
     from config import engine_Db_no_async,CHUNCKSIZE,connection_string
+    logger.info("Esecuzione del modello")
     async with async_session_Db() as session:
         async with session.begin():
             request_dal = RichiesteExecution(session)
@@ -294,8 +295,11 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                                                    FK_SHAPE=shape_id,
                                                    PARAMS=params,
                                                    MAPPING_OUTPUT=mapping_output,
-                                                   RESULTS=RESULTS)
+                                                   RESULTS=None)
+            id_execution=res.ID_EXECUTION
     code=None
+    results=None
+    layers=None
     if model_id_or_code == "Testo":
         code = model_id_code
     elif model_id_or_code == "Model_id":
@@ -331,18 +335,17 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                 table_name = v
                 #df_out=cercare su code_input.data il nome della variabile con df_out = True
                 df_result = variables[k]
-                if hasattr(df_result,"crs"):
+                if hasattr(df_result, "crs"):
                     gdf:gd.GeoDataFrame = df_result
                     gdf.to_postgis(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
                     layers.append(table_name)
-                elif type(df_result)==pd.DataFrame:
+                elif type(df_result) == pd.DataFrame:
                     df:pd.DataFrame=df_result
                     df.to_sql(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
                     tables.append(table_name)
             #TODO:pubblicazione su geoserver
             layers = publish_layers(group_id,layers)
 
-            return JSONResponse(status_code=200, content={"layers": layers})
         except Exception as e:
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
     elif language == "r":
@@ -365,9 +368,14 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                     tables.append(table_name)
             #TODO:pubblicazione su geoserver
             layers = publish_layers(group_id,layers)
-            return JSONResponse(status_code=200, content={"layers": layers})
+            results={}
             #return JSONResponse(status_code=200, content={"result": result})
         except Exception as e:
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
-    
 
+    async with async_session_Db() as session:
+        async with session.begin():
+            res = RichiesteExecution(session)
+            res = await request_dal.update_request(ID_EXECUTION=id_execution,
+                                                   RESULTS=results)
+    return JSONResponse(status_code=200, content={"layers": layers,"results":results})
