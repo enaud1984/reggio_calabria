@@ -5,7 +5,7 @@ from multiprocessing.pool import ThreadPool
 
 import psycopg2
 
-from config import LIST_LOAD, POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_PORT, POSTGRES_SERVER, POSTGRES_USER, engine_Db_no_async, APP, CHUNCKSIZE
+from config import LIST_LOAD, POSTGIS_TYPES_MAPPING, POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_PORT, POSTGRES_SERVER, POSTGRES_USER, engine_Db_no_async, APP, CHUNCKSIZE
 import os
 
 from utility import find_specTable, change_column_types
@@ -124,7 +124,7 @@ class Dbf_wrapper(Dbf5):
 
 
 def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_str,schema=None,
-                      engine=engine_Db_no_async, srid=None,load_type="append",multithread=True):
+                      engine=engine_Db_no_async, srid=None,load_type="append",multithread=False):
     from importerLayers import publish_layers
     try:
         if not schema:
@@ -168,7 +168,7 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
                 res = load_shapefile_to_postgis(file_name, map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid)
                 results.append(res)
             
-        
+        map_errors = {}
         for res,table_name,elapsed in results:
             file_name = map_files[table_name]
             if res:
@@ -176,6 +176,7 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
             else:
                 if "Error" not in map_results:
                     map_results["Error"]=[]
+                map_errors[file_name]=file_name
                 map_results["Error"].append(file_name)
             if "Stats" not in map_results:
                 map_results["Stats"]={}
@@ -185,7 +186,7 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
         elapsed=(get_now() - start_time_tot).total_seconds()
         map_results["Stats"]["TOTAL"]=f"Total time elapsed:{elapsed}"
         logger.info(f"terminati shp:{len(list_shp)},Total time elapsed:{elapsed}")
-        layers=[table for table in list_shp]
+        layers = [table for table in list_shp if table not in map_errors]
         publish_layers(group_id,layers=layers,with_view=True)
         return map_results
     except Exception as e:
@@ -365,32 +366,25 @@ def get_columns_shapefile(shapefile_path,table_name,gdf, srid):
         representation = f"geometry({geometry_type},{srid})"
     else:
         representation = f"geometry"
-    postgis_types_mapping = {
-        'object': 'text',
-        'int64': 'integer',
-        'float64': 'double precision',
-        'float32': 'double precision',
-        'int32': 'integer',
-        'int16': 'integer',
-    }
+    
     gdf_types_list = []
 
     for dtype in gdf.dtypes:
         if dtype == "geometry":
             tipo = representation
         else:
-            tipo = postgis_types_mapping[str(dtype)]
+            tipo = POSTGIS_TYPES_MAPPING[str(dtype)]
         gdf_types_list.append(tipo)
     gdf_types_list.append("text")  # group_id
     # se esiste un campo di tipo geometry, aggiungere un campo "geometry" tipo geometry("tipo senza Z",25832)
-    for ele in gdf_types_list:
-        if ele.startswith("geometry") and "Z," in ele.upper():
-            comma_index = ele.find(",")
-            if comma_index != -1:
-                number_str = ele[comma_index + 1:-1]
-                ele_new = ele.replace("Z", "").replace("z", "").replace(number_str, "25832")
-                columns_list.append("geometry_2D")
-                gdf_types_list.append(ele_new)
+    #for ele in gdf_types_list:
+    #    if ele.startswith("geometry") and "Z," in ele.upper():
+    #        comma_index = ele.find(",")
+    #        if comma_index != -1:
+    #            number_str = ele[comma_index + 1:-1]
+    #            ele_new = ele.replace("Z", "").replace("z", "")#.replace(number_str, "25832")
+    #            #columns_list.append("geometry_2D")
+    #            gdf_types_list.append(ele_new)
     map_create = {key: value for key, value in zip(columns_list, gdf_types_list)}
     map_create_date = {}
 

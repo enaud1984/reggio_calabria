@@ -51,7 +51,7 @@ GEOSERVER_PUBLIC_LOCATION=os.getenv('GEOSERVER_PUBLIC_LOCATION', 'http://localho
 GEOSERVER_LOCATION=os.getenv('GEOSERVER_LOCATION', f'http://{GEOSERVER_LB_HOST_IP}:{GEOSERVER_LB_PORT}/geoserver/')
 GEOSERVER_ADMIN_USER=os.getenv('GEOSERVER_ADMIN_USER', f'admin')
 GEOSERVER_ADMIN_PASSWORD=os.getenv('GEOSERVER_ADMIN_PASSWORD', f'geoserver')
-GEOSERVER_DB_SERVICES=os.getenv('GEOSERVER_DB_SERVICES', f'db')
+GEOSERVER_DB_SERVICES=os.getenv('GEOSERVER_DB_SERVICES', POSTGRES_SERVER)
 GEOSERVER_DB_PORT=eval(os.getenv('GEOSERVER_DB_PORT', "5432"))
 
 EVICTOR_RUN_PERIODICITY=eval(os.getenv('GS_EVICTOR_RUN_PERIODICITY','300'))
@@ -71,3 +71,12 @@ TEST_WHILE_IDLE=os.getenv('GS_TEST_WHILE_IDLE',"true")
 MAX_CONNECTION_IDLE_TIME=eval(os.getenv('GS_MAX_CONNECTION_IDLE_TIME','300'))
 
 ONSTART_DROP_CREATE= eval(os.getenv('ONSTART_DROP_CREATE','False'))
+POSTGIS_TYPES_MAPPING = {
+        'str': 'text',
+        'object': 'text',
+        'int64': 'integer',
+        'float64': 'double precision',
+        'float32': 'double precision',
+        'int32': 'integer',
+        'int16': 'integer',
+    }

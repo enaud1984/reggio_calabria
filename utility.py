@@ -8,7 +8,7 @@ from multiprocessing.pool import ThreadPool
 
 import psycopg2
 
-from config import ENABLE_POOL_LOAD, APP, engine_Db_no_async, CHUNCKSIZE
+from config import ENABLE_POOL_LOAD, APP, POSTGIS_TYPES_MAPPING, engine_Db_no_async, CHUNCKSIZE
 
 logger = logging.getLogger(APP)
 
@@ -58,18 +58,10 @@ def find_specTable(map_tables,key):
     return map_field
 
 def change_column_types(df, json_types):
-    postgis_types_mapping = {
-        'str': 'text',
-        'object': 'text',
-        'int64': 'integer',
-        'float64': 'double precision',
-        'float32': 'double precision',
-        'int32': 'integer',
-        'int16': 'integer',
-    }
+    
     for colonna, field in json_types.items():
         tt =type(df[colonna][0]).__name__
-        dftype=postgis_types_mapping.get(tt)
+        dftype=POSTGIS_TYPES_MAPPING.get(tt)
         if dftype is not None and field.tipo!=dftype:
             df[colonna] = df[colonna].astype(dftype)
     return df
