@@ -124,36 +124,51 @@ class Dbf_wrapper(Dbf5):
 
 
 def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_str,schema=None,
-                      engine=engine_Db_no_async, srid=None,load_type="append"):
+                      engine=engine_Db_no_async, srid=None,load_type="append",multithread=False):
     from importerLayers import publish_layers
     try:
         if not schema:
             schema=group_id
         logger.info(f"Caricamento parallelo, srid={srid}, load_type={load_type}")
-
         map_results = {}
         list_dbf=[k for k, file_name in map_files.items() if file_name.endswith('.dbf')]
         list_shp=[k for k, file_name in map_files.items() if file_name.endswith('.shp')]
         logger.info(f"Caricamento parallelo:, dbf:{len(list_dbf)},shp:{len(list_shp)}")
-        num_thread =int(len(map_files)/2)+1
-        tasks=[]
+        
         start_time_tot = get_now()
-        pool = ThreadPool(num_thread)
-        for k in list_dbf:
-            file_name = map_files[k]
-            table_name = k  # Usa il nome del file shape come nome della tabella
-            task = pool.apply_async(load_dbf_to_postgis, args=(file_name,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
-            tasks.append(task)
+        if multithread: 
+            num_thread =int(len(map_files)/2)+1
+            tasks=[]
+            pool = ThreadPool(num_thread)
+            for k in list_dbf:
+                file_name = map_files[k]
+                table_name = k  # Usa il nome del file shape come nome della tabella
+                task = pool.apply_async(load_dbf_to_postgis, args=(file_name,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
+                tasks.append(task)
 
-        for k in list_shp:
-            file_name = map_files[k]
-            table_name = k  # Usa il nome del file shape come nome della tabella
-            task = pool.apply_async(load_shapefile_to_postgis, args=(file_name, map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
-            tasks.append(task)
-        pool.close()
-        pool.join()
+            for k in list_shp:
+                file_name = map_files[k]
+                table_name = k  # Usa il nome del file shape come nome della tabella
+                task = pool.apply_async(load_shapefile_to_postgis, args=(file_name, map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
+                tasks.append(task)
+            pool.close()
+            pool.join()
 
-        results = [r.get() for r in tasks if r.get() is not None]
+            results = [r.get() for r in tasks if r.get() is not None]
+        else:
+            results = []
+            for k in list_dbf:
+                file_name = map_files[k]
+                table_name = k  # Usa il nome del file shape come nome della tabella
+                res = load_dbf_to_postgis(file_name,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid)
+                results.append(res)
+            for k in list_shp:
+                file_name = map_files[k]
+                table_name = k  # Usa il nome del file shape come nome della tabella
+                res = load_shapefile_to_postgis(file_name, map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid)
+                results.append(res)
+            
+        
         for res,table_name,elapsed in results:
             file_name = map_files[table_name]
             if res:
@@ -193,7 +208,7 @@ def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,sch
         start_time = get_now()
         map_create, columns, _, columns_list,df=load_dbf(shapefile_path,table_name,group_id,srid_validation)
         json_types=find_specTable(map_tables_edited,table_name)
-        df=change_column_types(df, json_types)
+        df = change_column_types(df, json_types)
         res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine)
         elapsed=(get_now() - start_time).total_seconds()
         logger.info(f"caricato {table_name},map_create:{map_create},elapsed:{elapsed}")

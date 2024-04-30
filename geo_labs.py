@@ -1,3 +1,4 @@
+from collections import namedtuple
 import json
 import logging
 import os
@@ -59,34 +60,39 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
             table_name = file[:-4]
             if table_name not in list_table_shp:
                 map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id,None)
-                map_results[table_name]={
+                info={
                     "result":res,
-                    "columns":columns, 
+                    "columns":columns,
+                    "file":file_path,
+                    "table_name":table_name, 
                     "columns_list":columns_list, 
                     "elapsed":elapsed,
                     "map_create":map_create
                 }
-                list_create.append([None,map_create])
+                map_results[table_name]=info
+                list_create.append([None,map_create,namedtuple("Info",list(info.keys()))(**info)])
         for file_path,file in list_files_shp:
             table_name = file[:-4]
             if table_name in list_table_shp:
                 res, columns, gdf, columns_list, start_time, elapsed,map_create = load_shapefile(file_path,table_name,group_id,None)
                 srid  = gdf.crs.to_epsg()
-                map_results[table_name]={
+                info ={
                     "result":res,
+                    "file":file_path,
+                    "table_name":table_name, 
                     "columns":columns, 
                     "columns_list":columns_list, 
                     "elapsed":elapsed,
                     "srid":srid,
                     "map_create":map_create
                 }
-                list_create.append([srid,map_create])
-        for srid,map_create in list_create:
+                map_results[table_name]=info
+                list_create.append([srid,map_create,namedtuple("Info",list(info.keys()))(**info)])
+        for srid,map_create,info in list_create:
             for col, tipo in map_create.items():
-                
                 column_response = ColumnResponse(
-                    filename=file,
-                    table=table_name,
+                    filename=info.file,
+                    table=info.table_name,
                     column=col,
                     tipo=tipo,
                     srid=srid,
@@ -94,7 +100,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                     importing=True
                 )
                 mapping_fields.data.append(column_response)
-        list_files=[os.path.join(file_path,file) for file_path,file in list_files_dbf+list_files_shp]
+        list_files=[file_path for file_path,file in list_files_dbf+list_files_shp]
         async with async_session_Db() as sessionpg:
             async with sessionpg.begin():
                 request_dal = RichiesteDAL(sessionpg)

@@ -22,13 +22,27 @@ def unzip(path_to_zip_file,directory_to_extract_to):
 
 
 def find_specTable(map_tables,key):
-    for item in map_tables["data"]:
-        if key in item:
-            return item[key]
+    map_field ={}
+    for item in map_tables.data:
+        if key==item.table:
+            map_field[item.column_name]=item
+    return map_field
 
 def change_column_types(df, json_types):
-    for colonna, tipo in json_types.items():
-        df[colonna] = df[colonna].astype(tipo)
+    postgis_types_mapping = {
+        'str': 'text',
+        'object': 'text',
+        'int64': 'integer',
+        'float64': 'double precision',
+        'float32': 'double precision',
+        'int32': 'integer',
+        'int16': 'integer',
+    }
+    for colonna, field in json_types.items():
+        tt =type(df[colonna][0]).__name__
+        dftype=postgis_types_mapping.get(tt)
+        if dftype is not None and field.tipo!=dftype:
+            df[colonna] = df[colonna].astype(dftype)
     return df
 
 def get_md5(fname,path="to_upload"):
