@@ -11,7 +11,7 @@ from datetime import datetime
 from starlette.responses import JSONResponse
 
 from DAO import CodeInput, ColumnResponse, MapTables
-from config import APP, LIST_LANG, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, PATH_TO_UPLOAD, \
+from config import APP, LIST_LANG, LIST_LOAD, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, PATH_TO_UPLOAD, \
     LIST_SRID, async_session_Db
 
 from fastapi import FastAPI, UploadFile, File, Query
@@ -129,7 +129,7 @@ async def load_shapefile2postgis(validation_id: int,
                                  group_id: str,
                                  schema: str = "public",
                                  srid_validation=Query(description="Selezionare SRID di riferimento",enum=["auto"]+LIST_SRID),
-                                 load_type="append",
+                                 load_type=Query(description="Selezionare modalita caicamento tabella",enum=LIST_LOAD),
                                  mapping_fields: MapTables = None):
     try:
         logger.info("Load Shape files to PostGis...")
