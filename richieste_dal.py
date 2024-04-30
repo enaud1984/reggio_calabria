@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 from datetime import datetime
 #from config import DEFAULT_LOAD_TYPE, DEFAULT_STATUS
-from richieste_entity import RequestEntityUpload, RequestEntityLoad, RequestModel
+from richieste_entity import RequestEntityUpload, RequestEntityLoad, RequestModel, RequestModelExecution
 
 
 def sqlalchemy_to_dict(obj):
@@ -36,7 +36,7 @@ class RichiesteUpload:
                 stmt.where(self.model.ID_SHAPE == ID_SHAPE and self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
         elif ID_SHAPE is None and GROUP_ID is not None:
             q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
-        elif GROUP_ID is None and id is not None:
+        elif GROUP_ID is None and ID_SHAPE is not None:
             q = await self.db_session.execute(stmt.where(self.model.ID_SHAPE == ID_SHAPE).offset(skip).limit(limit))
         return q.scalars().all()
 
@@ -112,7 +112,7 @@ class RichiesteLoad:
                 stmt.where(self.model.ID_SHAPE == ID_SHAPE and self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
         elif ID_SHAPE is None and GROUP_ID is not None:
             q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
-        elif GROUP_ID is None and id is not None:
+        elif GROUP_ID is None and ID_SHAPE is not None:
             q = await self.db_session.execute(stmt.where(self.model.ID_SHAPE == ID_SHAPE).offset(skip).limit(limit))
         return q.scalars().all()
 
@@ -152,7 +152,7 @@ class RichiesteModel:
                 stmt.where(self.model.ID_MODEL == ID_MODEL and self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
         elif ID_MODEL is None and GROUP_ID is not None:
             q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
-        elif GROUP_ID is None and id is not None:
+        elif GROUP_ID is None and ID_MODEL is not None:
             q = await self.db_session.execute(stmt.where(self.model.ID_MODEL == ID_MODEL).offset(skip).limit(limit))
         return q.scalars().all()
 
@@ -163,4 +163,45 @@ class RichiesteModel:
 
     async def del_request(self, ID_MODEL: int):
         q = await self.db_session.execute(delete(self.model).where(self.model.ID_MODEL == ID_MODEL))
+        return q
+
+class RichiesteExecution:
+    def __init__(self, db_session: Session):
+        self.db_session = db_session
+        self.model = RequestModelExecution
+
+    async def create_request(self, ID_EXECUTION ,DATE_EXECUTION ,STATUS,GROUP_ID,FK_MODEL,FK_SHAPE,FK_SHAPE_ZIP,PARAMS,RESULTS):
+
+        new_request = self.model(ID_EXECUTION = ID_EXECUTION,
+                                 DATE_EXECUTION = DATE_EXECUTION,
+                                 STATUS = STATUS,
+                                 GROUP_ID = GROUP_ID,
+                                 FK_MODEL = FK_MODEL, #
+                                 FK_SHAPE = FK_SHAPE,
+                                 FK_SHAPE_ZIP = FK_SHAPE_ZIP,
+                                 PARAMS = PARAMS,
+                                 RESULTS = RESULTS)
+
+        self.db_session.add(new_request)
+        await self.db_session.flush()
+        return new_request
+
+    async def get_all_requests(self, ID_EXECUTION=None, GROUP_ID=None, skip: int = 0, limit: int = 100):
+        stmt = select(self.model)
+        if GROUP_ID is not None and ID_EXECUTION is not None:
+            q = await self.db_session.execute(
+                stmt.where(self.model.ID_EXECUTION == ID_EXECUTION and self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
+        elif ID_EXECUTION is None and GROUP_ID is not None:
+            q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
+        elif GROUP_ID is None and ID_EXECUTION is not None:
+            q = await self.db_session.execute(stmt.where(self.model.ID_EXECUTION == ID_EXECUTION).offset(skip).limit(limit))
+        return q.scalars().all()
+
+    async def get_request(self, ID_EXECUTION=None):
+        stmt = select(self.model)
+        q = await self.db_session.execute(stmt.where(self.model.ID_EXECUTION == int(ID_EXECUTION)))
+        return q.first()
+
+    async def del_request(self, ID_EXECUTION: int):
+        q = await self.db_session.execute(delete(self.model).where(self.model.ID_EXECUTION == ID_EXECUTION))
         return q

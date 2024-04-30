@@ -1,8 +1,9 @@
 -- Table: public.richieste_upload
 CREATE EXTENSION postgis;
-DROP TABLE IF EXISTS public.richieste_upload;
 
-CREATE TABLE IF NOT EXISTS public.richieste_upload
+DROP TABLE IF EXISTS geo_labs.richieste_upload;
+
+CREATE TABLE IF NOT EXISTS geo_labs.richieste_upload
 (
     "ID_SHAPE" serial,
     "SHAPEFILE" character varying(2048) COLLATE pg_catalog."default",
@@ -19,5 +20,5 @@ CREATE TABLE IF NOT EXISTS public.richieste_upload
 
 TABLESPACE pg_default;
 
-ALTER TABLE IF EXISTS public.richieste_upload
+ALTER TABLE IF EXISTS geo_labs.richieste_upload
     OWNER to postgres;

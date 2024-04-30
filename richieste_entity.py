@@ -1,13 +1,13 @@
 
 from sqlalchemy import Column, Integer, String,TIMESTAMP,Boolean,JSON,ARRAY
 
-from config import Base
+from config import Base,SCHEMA
 import logging
 
 log=logging.getLogger(__name__)
 class RequestEntityUpload(Base):
     __tablename__ = 'richieste_upload'
-    __table_args__ = {'schema': 'public'}
+    __table_args__ = {'schema': SCHEMA}
 
     ID_SHAPE = Column(Integer, primary_key=True)
     SHAPEFILE = Column(String, nullable=True) #nome zip file
@@ -52,7 +52,7 @@ class RequestEntityUpload(Base):
 
 class RequestEntityLoad(Base):
     __tablename__ = 'richieste_load'
-    __table_args__ = {'schema': 'public'}
+    __table_args__ = {'schema': SCHEMA}
 
     ID_SHAPE = Column(Integer, primary_key=True)
     DATE_LOAD = Column(TIMESTAMP, nullable=True) #data upload
@@ -84,7 +84,7 @@ class RequestEntityLoad(Base):
 
 class RequestModel(Base):
     __tablename__ = 'models'
-    __table_args__ = {'schema': 'public'}
+    __table_args__ = {'schema': SCHEMA}
 
 
     ID_MODEL = Column(Integer, primary_key=True)
@@ -115,9 +115,9 @@ class RequestModel(Base):
         }
         }
 
-class ModelExecution(Base):
+class RequestModelExecution(Base):
     __tablename__ = 'model_execution'
-    __table_args__ = {'schema': 'public'}
+    __table_args__ = {'schema':SCHEMA}
 
 
     ID_EXECUTION = Column(Integer, primary_key=True)
