@@ -307,7 +307,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
 
     # Analisi del codice alla ricerca dei parametri %param1%
     params = re.findall(r'%([^%]+)%', code)
-
+    logger.info(f"Parametri trovati nel codice: {params}")
     # Sostituzione dei parametri con i valori forniti dall'utente
     for param in params:
         value = params[param]
@@ -318,7 +318,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
         try:
             variables = {}
             global_df = {}
-            mapping_shape = {}
+            mapping_shape = {} #prendere i nomi delle tabelle e il tipo dal db
             for tablename,type_dataframe in mapping_shape.items():
                 if type_dataframe=="gd.GeoDataFrame":
                     gdf: gd.GeoDataFrame = gd.read_postgis(f"{group_id}.{tablename}",connection_string)
