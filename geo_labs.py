@@ -356,8 +356,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                     df:pd.DataFrame=df_result
                     df.to_sql(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
                     tables.append(table_name)
-            #TODO:pubblicazione su geoserver
-            layers = publish_layers(group_id,layers)
+
         except Exception as e:
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
     elif language == "r":
@@ -379,8 +378,8 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                     df:pd.DataFrame=df_result
                     df.to_sql(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
                     tables.append(table_name)
-            #TODO:pubblicazione su geoserver
-            layers = publish_layers(group_id,layers)
+
+
             results={}
             #return JSONResponse(status_code=200, content={"result": result})
         except Exception as e:
@@ -391,4 +390,5 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
             request_dal = RichiesteExecution(session)
             res = await request_dal.update_request(ID_EXECUTION=id_execution,
                                                    RESULTS=results)
+    layers = publish_layers(group_id,layers)
     return JSONResponse(status_code=200, content={"layers": layers,"results":results})
