@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 from datetime import datetime
 #from config import DEFAULT_LOAD_TYPE, DEFAULT_STATUS
-from richieste_entity import RequestEntityUpload, RequestEntityLoad
+from richieste_entity import RequestEntityUpload, RequestEntityLoad, RequestModel
 
 
 def sqlalchemy_to_dict(obj):
@@ -123,4 +123,44 @@ class RichiesteLoad:
 
     async def del_request(self, ID_SHAPE: int):
         q = await self.db_session.execute(delete(self.model).where(self.model.ID_SHAPE == ID_SHAPE))
+        return q
+
+class RichiesteModel:
+    def __init__(self, db_session: Session):
+        self.db_session = db_session
+        self.model = RequestModel
+
+    async def create_request(self, ID_MODEL: int, DATE_MODEL:datetime,STATUS:str,
+                             GROUP_ID: str, CODE:str,PARAMS:dict={},LIBRARY:bool=False):
+
+        new_request = self.model(ID_MODEL = ID_MODEL,
+                                 DATE_MODEL = DATE_MODEL,
+                                 STATUS = STATUS,
+                                 GROUP_ID = GROUP_ID,
+                                 CODE = CODE,
+                                 PARAMS = PARAMS,
+                                 LIBRARY = LIBRARY)
+
+        self.db_session.add(new_request)
+        await self.db_session.flush()
+        return new_request
+
+    async def get_all_requests(self, ID_MODEL=None, GROUP_ID=None, skip: int = 0, limit: int = 100):
+        stmt = select(self.model)
+        if GROUP_ID is not None and ID_MODEL is not None:
+            q = await self.db_session.execute(
+                stmt.where(self.model.ID_MODEL == ID_MODEL and self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
+        elif ID_MODEL is None and GROUP_ID is not None:
+            q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
+        elif GROUP_ID is None and id is not None:
+            q = await self.db_session.execute(stmt.where(self.model.ID_MODEL == ID_MODEL).offset(skip).limit(limit))
+        return q.scalars().all()
+
+    async def get_request(self, ID_MODEL=None):
+        stmt = select(self.model)
+        q = await self.db_session.execute(stmt.where(self.model.ID_MODEL == int(ID_MODEL)))
+        return q.first()
+
+    async def del_request(self, ID_MODEL: int):
+        q = await self.db_session.execute(delete(self.model).where(self.model.ID_MODEL == ID_MODEL))
         return q

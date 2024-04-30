@@ -82,7 +82,7 @@ class RequestEntityLoad(Base):
         }
         }
 
-class Models(Base):
+class RequestModel(Base):
     __tablename__ = 'models'
     __table_args__ = {'schema': 'public'}
 
@@ -93,7 +93,7 @@ class Models(Base):
     GROUP_ID = Column(String, nullable=False)
     CODE = Column(String, nullable=False)
     PARAMS = Column(JSON, nullable=True)  #json della richiesta precedente editato
-
+    LIBRARY = Column(Boolean, nullable=False)  #flag library
 
     def __str__(self):
         return ("{"+'"Request":{'

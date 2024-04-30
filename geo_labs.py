@@ -17,7 +17,7 @@ from config import APP, LIST_LANG, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, 
 from fastapi import FastAPI, UploadFile, File, Query
 
 from importerLayers import delete_layers, publish_layers
-from richieste_dal import RichiesteUpload,RichiesteLoad
+from richieste_dal import RichiesteUpload, RichiesteLoad, RichiesteModel
 from utility import unzip, get_md5
 from utility_R import invoke_R
 from utility_postgres import shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
@@ -133,6 +133,15 @@ async def load_shapefile2postgis(validation_id: int,
                                  mapping_fields: MapTables = None):
     try:
         logger.info("Load Shape files to PostGis...")
+        async with async_session_Db() as sessionpg:
+            async with sessionpg.begin():
+                request_dal = RichiesteLoad(sessionpg)
+                res_PostGres = await request_dal.create_request(ID_SHAPE=None,
+                                                                DATE_LOAD=datetime.now(),
+                                                                STATUS="LOAD SHAPEFILE",
+                                                                GROUP_ID=group_id,
+                                                                REQUEST=mapping_fields.to_dict())
+
         #host='127.0.0.1' port='5444' dbname='postgres' user='postgres' password='postgres'
         conn_str_db: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'"
                             
@@ -141,6 +150,7 @@ async def load_shapefile2postgis(validation_id: int,
             srid_validation = None
         result = shapeFile2Postgis(validation_id,map_files,mapping_fields,group_id,conn_str_db,schema=schema,
                                  srid=srid_validation,load_type=load_type)
+        #TODO: inserire result in db con update in modo da poterlo usare dopo?
         return JSONResponse(content={"result": result,"esito":"OK","layers":result}, status_code=201)
     except Exception as e:
         logger.error(f"Error:{e}", stack_info=True)
@@ -217,24 +227,60 @@ async def delete_shape(ID_SHAPE: int,group_id):
             _type_: _json_
 
         """
-    async with async_session_Db() as session:
-        async with session.begin():
-            request_dal = RichiesteLoad(session)
-            ret = await request_dal.get_request(ID_SHAPE=ID_SHAPE)
-            #cancellazione folder da to_upload
-            shutil.rmtree(ret.PATH_SHAPEFILE)
-            #cancellazione layer pubblicati
-            delete_layers(group_id,[l.split(".")[0] for l in ret.USERFILE])
-            return await request_dal.del_request(ID_SHAPE=ID_SHAPE)
+    try:
+        async with async_session_Db() as session:
+            async with session.begin():
+                request_dal = RichiesteLoad(session)
+                ret = await request_dal.get_request(ID_SHAPE=ID_SHAPE)
+                #cancellazione folder da to_upload
+                shutil.rmtree(ret.PATH_SHAPEFILE)
+                #cancellazione layer pubblicati
+                delete_layers(group_id,[l.split(".")[0] for l in ret.USERFILE])
+                return await request_dal.del_request(ID_SHAPE=ID_SHAPE)
+    except Exception as e:
+        logger.error(f"Error:{e}", stack_info=True)
+        return JSONResponse(content={"error": str(e),"group_id":group_id,
+                                     "id":ID_SHAPE
+                                     },
+                            status_code=501)
 
 #TODO: servizio per update shape sul db
 #TODO: servizio per caricare il python del modello sul db  tabella
 
+
+@app.post("/upload_lib")
+async def upload_lib(group_id, file_zip: UploadFile = File(...)):
+    pass
+
+@app.post("/upload_model")
+async def upload_model(group_id, code_str: str):
+    try:
+        ID_MODEL=None
+        async with async_session_Db() as session:
+            async with session.begin():
+                request_dal = RichiesteModel(session)
+                res = await request_dal.create_request(ID_MODEL=None,
+                                                       DATE_MODEL=datetime.now(),
+                                                       STATUS="LOAD MODEL",
+                                                       GROUP_ID=group_id,
+                                                       CODE=code_str,
+                                                       PARAMS=None, #risposta di una load precedente per ID_SHAPE? ci vuole?
+                                                       LIBRARY=False)
+                ID_MODEL = res.ID_MODEL
+    except Exception as e:
+        logger.error(f"Error:{e}", stack_info=True)
+        return JSONResponse(content={"error": str(e),"group_id":group_id,
+                                     "id":ID_MODEL
+                                     },
+                            status_code=501)
+
+
 @app.post("/execute_code/")
-async def execute_code(group_id:str,shape_id: int,params: dict,mapping_output: dict,
-                       language: str=Query(description="Selezionare linguaggio",enum=LIST_LANG),
-                       model_id_or_code: str=Query(description="Selezionare la sorgente del codice",enum=["Model_id","Testo"]),
+async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output: dict,
+                       language: str = Query(description="Selezionare linguaggio",enum=LIST_LANG),
+                       model_id_or_code: str = Query(description="Selezionare la sorgente del codice",enum=["Model_id","Testo"]),
                        model_id_code=None):
+
     from config import engine_Db_no_async,CHUNCKSIZE,connection_string
 
     code=None
