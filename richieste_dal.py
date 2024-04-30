@@ -115,3 +115,12 @@ class RichiesteLoad:
         elif GROUP_ID is None and id is not None:
             q = await self.db_session.execute(stmt.where(self.model.ID_SHAPE == ID_SHAPE).offset(skip).limit(limit))
         return q.scalars().all()
+
+    async def get_request(self, ID_SHAPE=None):
+        stmt = select(self.model)
+        q = await self.db_session.execute(stmt.where(self.model.ID_SHAPE == int(ID_SHAPE)))
+        return q.first()
+
+    async def del_request(self, ID_SHAPE: int):
+        q = await self.db_session.execute(delete(self.model).where(self.model.ID_SHAPE == ID_SHAPE))
+        return q

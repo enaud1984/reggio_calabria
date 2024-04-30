@@ -17,7 +17,7 @@ from config import APP, LIST_LANG, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, 
 from fastapi import FastAPI, UploadFile, File, Query
 
 from importerLayers import delete_layers, publish_layers
-from richieste_dal import RichiesteDAL
+from richieste_dal import RichiesteUpload,RichiesteLoad
 from utility import unzip, get_md5
 from utility_R import invoke_R
 from utility_postgres import shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
@@ -41,6 +41,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
             shutil.copyfileobj(file_zip.file, buffer)
         #unzip file
         shapefile_folder=unzip(file_path_zip,PATH_TO_UPLOAD)
+        logger.info("Uploading shapefile and unzip")
         mapping_fields = MapTables(data=[])
         list_files_dbf=[]
         list_files_shp=[]
@@ -60,9 +61,8 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         for file_path,file in list_files_dbf:
             table_name = file[:-4]
             if table_name not in list_table_shp:
-                map_create, columns, _, columns_list,df = load_dbf(file_path, table_name,group_id,None)
+                map_create, columns, _, columns_list,df,elapsed = load_dbf(file_path, table_name,group_id,None)
                 info={
-                    "result":res,
                     "columns":columns,
                     "file":file_path,
                     "table_name":table_name, 
@@ -78,7 +78,6 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                 res, columns, gdf, columns_list, start_time, elapsed,map_create = load_shapefile(file_path,table_name,group_id,None)
                 srid  = gdf.crs.to_epsg()
                 info ={
-                    "result":res,
                     "file":file_path,
                     "table_name":table_name, 
                     "columns":columns, 
@@ -104,7 +103,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         list_files=[file_path for file_path,file in list_files_dbf+list_files_shp]
         async with async_session_Db() as sessionpg:
             async with sessionpg.begin():
-                request_dal = RichiesteDAL(sessionpg)
+                request_dal = RichiesteUpload(sessionpg)
                 md5_zip=get_md5(file_zip.filename)
                 os.remove(file_path_zip)
                 res_PostGres = await request_dal.create_request(ID_SHAPE=None,
@@ -112,7 +111,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                                                                 DATE_UPLOAD=datetime.now(),
                                                                 STATUS="UPLOAD ZIP",
                                                                 GROUP_ID=group_id,
-                                                                SRID=srid,
+                                                                SRID=None,
                                                                 PATH_SHAPEFILE=shapefile_folder,
                                                                 MD5=md5_zip,
                                                                 USERFILE=list_files,
@@ -127,13 +126,13 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
 
 @app.post("/load_shapefile2postgis")
 async def load_shapefile2postgis(validation_id: int,
-                             group_id: str,
-                             schema: str = "public",
-                             srid_validation=Query(description="Selezionare SRID di riferimento",enum=["auto"]+LIST_SRID),
-                             load_type="append",
-                             mapping_fields: MapTables = None):
+                                 group_id: str,
+                                 schema: str = "public",
+                                 srid_validation=Query(description="Selezionare SRID di riferimento",enum=["auto"]+LIST_SRID),
+                                 load_type="append",
+                                 mapping_fields: MapTables = None):
     try:
-        #TODO:Update request
+        logger.info("Load Shape files to PostGis...")
         #host='127.0.0.1' port='5444' dbname='postgres' user='postgres' password='postgres'
         conn_str_db: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'"
                             
@@ -150,14 +149,14 @@ async def load_shapefile2postgis(validation_id: int,
         return JSONResponse(content={"esito":"KO","error": str(e)}, status_code=501)
 
 
-@app.get("/requests")
-async def get_all_requests(id:int=None,group_id=None,skip: int = 0, limit: int = 100) :
+@app.get("/get_all_upload")
+async def get_all_upload(id_shape:int=None,group_id=None,skip: int = 0, limit: int = 100) :
     '''_Summary_<br>
         _Lista delle richieste storiche<br>
 
     __Args:__<br>
-        <li>__stato__ (StateProcess): _stato di destinazione del processo di __validazione__ </li>
-        <li>__validation_id_ (id, optional): __id__ della richiesta  che effettua il caricamento_. Defaults to Null.</li>
+        <li>id_shape (StateProcess): __id__ della richiesta  che effettua il caricamento_. Defaults to Null. </li>
+        <li>group_id (id, optional): __group_id__ della richiesta  che effettua il caricamento_. Defaults to Null.</li>
         <li>__skip__ (int, optional): _parametro della paginazione per saltare le righe_. Defaults to 0.</li>
         <li>__limit__ (int, optional): _parametro di paginazione per avere un limite sul numero di record restituiti _. Defaults to 100.</li>
 
@@ -169,17 +168,44 @@ async def get_all_requests(id:int=None,group_id=None,skip: int = 0, limit: int =
     try:
         async with async_session_Db() as session:
             async with session.begin():
-                request_dal = RichiesteDAL(session)
-                ret = await request_dal.get_all_requests(id, group_id, skip, limit)
+                request_dal = RichiesteUpload(session)
+                ret = await request_dal.get_all_requests(id_shape, group_id, skip, limit)
         return ret
     except Exception as e:
         logger.error(f"Error:{e}", stack_info=True)
         return JSONResponse(content={"error": str(e),"group_id":group_id,
-                                     "id":id
+                                     "id":id_shape
                                      },
                             status_code=501)
 
+@app.get("/get_all_shapes")
+async def get_all_shapes(id_shape:int=None,group_id=None,skip: int = 0, limit: int = 100) :
+    '''_Summary_<br>
+        _Lista delle richieste storiche<br>
 
+    __Args:__<br>
+        <li>__id_shape__ (StateProcess): _id shape__ </li>
+        <li>__group_id_ (id, optional): __group_id__ della richiesta  che effettua il caricamento_. Defaults to Null.</li>
+        <li>__skip__ (int, optional): _parametro della paginazione per saltare le righe_. Defaults to 0.</li>
+        <li>__limit__ (int, optional): _parametro di paginazione per avere un limite sul numero di record restituiti _. Defaults to 100.</li>
+
+    __Returns:__<br>
+        _type_: _json_
+        lista delle richieste al director o del worker
+    '''
+
+    try:
+        async with async_session_Db() as session:
+            async with session.begin():
+                request_dal = RichiesteLoad(session)
+                ret = await request_dal.get_all_requests(id_shape, group_id, skip, limit)
+        return ret
+    except Exception as e:
+        logger.error(f"Error:{e}", stack_info=True)
+        return JSONResponse(content={"error": str(e),"group_id":group_id,
+                                     "id":id_shape
+                                     },
+                            status_code=501)
 @app.delete("/delete_shape")
 async def delete_shape(ID_SHAPE: int):
     """_summary_<br>
@@ -193,8 +219,8 @@ async def delete_shape(ID_SHAPE: int):
         """
     async with async_session_Db() as session:
         async with session.begin():
-            request_dal = RichiesteDAL(session)
-            ret = await request_dal.get_all_requests(ID_SHAPE=ID_SHAPE)
+            request_dal = RichiesteLoad(session)
+            ret = await request_dal.get_request(ID_SHAPE=ID_SHAPE)
             #cancellazione folder da to_upload
             shutil.rmtree(ret.PATH_SHAPEFILE)
             #cancellazione layer pubblicati
@@ -203,7 +229,6 @@ async def delete_shape(ID_SHAPE: int):
 
 #TODO: servizio per update shape sul db
 #TODO: servizio per caricare il python del modello sul db  tabella id-modello-codice-json della sua response
-
 
 @app.post("/execute_code/")
 async def execute_code(group_id:str,model_id: int,shape_id: int,params: dict,mapping_output: dict,code:str=None,language: str=Query(description="Selezionare linguaggio",enum=LIST_LANG) ):
