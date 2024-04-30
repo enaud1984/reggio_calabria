@@ -35,7 +35,7 @@ LOG_LEVEL = os.getenv("LOG_LEVEL","INFO")
 HANDLERS=ast.literal_eval(os.getenv("LOG_HANDLER",'["default","file"]'))
 PATH_TO_UPLOAD=os.path.join("to_upload")
 LIST_SRID = ast.literal_eval(os.getenv("LIST_SRID","[3003,3004,23032,23033,23034,32632,32633,32634,32632,25832,25833,6707,6708,6709,6875,3857,7794,26591,26592,6705,102091,102092]"))
-LIST_LANG = ["python", "R"]
+LIST_LANG = ["Python", "R"]
 #geoserver
 GEOSERVER_LB_HOST_IP=os.getenv('GEOSERVER_LB_HOST_IP', '127.0.0.1')
 GEOSERVER_LB_PORT=os.getenv('GEOSERVER_LB_PORT', '8080')

@@ -207,7 +207,7 @@ async def get_all_shapes(id_shape:int=None,group_id=None,skip: int = 0, limit: i
                                      },
                             status_code=501)
 @app.delete("/delete_shape")
-async def delete_shape(ID_SHAPE: int):
+async def delete_shape(ID_SHAPE: int,group_id):
     """_summary_<br>
                 cancellazione funzione<br>
          __Args:__<br>
@@ -224,15 +224,25 @@ async def delete_shape(ID_SHAPE: int):
             #cancellazione folder da to_upload
             shutil.rmtree(ret.PATH_SHAPEFILE)
             #cancellazione layer pubblicati
-            delete_layers([l.split(".")[0] for l in ret.USERFILE])
+            delete_layers(group_id,[l.split(".")[0] for l in ret.USERFILE])
             return await request_dal.del_request(ID_SHAPE=ID_SHAPE)
 
 #TODO: servizio per update shape sul db
-#TODO: servizio per caricare il python del modello sul db  tabella id-modello-codice-json della sua response
+#TODO: servizio per caricare il python del modello sul db  tabella
 
 @app.post("/execute_code/")
-async def execute_code(group_id:str,model_id: int,shape_id: int,params: dict,mapping_output: dict,code:str=None,language: str=Query(description="Selezionare linguaggio",enum=LIST_LANG) ):
+async def execute_code(group_id:str,shape_id: int,params: dict,mapping_output: dict,
+                       language: str=Query(description="Selezionare linguaggio",enum=LIST_LANG),
+                       model_id_or_code: str=Query(description="Selezionare la sorgente del codice",enum=["Model_id","Testo"]),
+                       model_id_code=None):
     from config import engine_Db_no_async,CHUNCKSIZE,connection_string
+
+    code=None
+    if model_id_or_code == "Testo":
+        code = model_id_code
+    elif model_id_or_code == "Model_id":
+        code="" #query sul db
+
     # Analisi del codice alla ricerca dei parametri %param1%
     params = re.findall(r'%([^%]+)%', code)
 
