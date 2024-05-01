@@ -57,13 +57,6 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         list_files_csv = []
         map_results={}
 
-        mapping_shape={}
-        for col in mapping_fields["data"]:
-            filename = col["filename"]
-            if mapping_shape.get(filename) is None:
-                type_dataframe = "pd.DataFrame" if filename.endswith(".shp") else "gd.DataFrame"
-                mapping_shape[filename] = type_dataframe
-
         for root, dirs, files in os.walk(shapefile_folder):
             for file in files:
                 file_path=os.path.join(root, file)
@@ -322,7 +315,19 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
         try:
             variables = {}
             global_df = {}
-            mapping_shape = {} #prendere i nomi delle tabelle e il tipo dal db
+            async with async_session_Db() as session:
+                async with session.begin():
+                    request_dal = RichiesteLoad(session)
+                    res = await request_dal.get_request(ID_SHAPE=shape_id)
+                    mapping_fields = res.REQUEST
+
+            mapping_shape={}
+            for col in mapping_fields["data"]:
+                filename = col["filename"]
+                if mapping_shape.get(filename) is None:
+                    type_dataframe = "pd.DataFrame" if filename.endswith(".shp") else "gd.DataFrame"
+                    mapping_shape[filename] = type_dataframe
+
             for tablename,type_dataframe in mapping_shape.items():
                 if type_dataframe=="gd.GeoDataFrame":
                     gdf: gd.GeoDataFrame = gd.read_postgis(f"{group_id}.{tablename}",connection_string)
