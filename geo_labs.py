@@ -56,6 +56,14 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         list_files_shp = []
         list_files_csv = []
         map_results={}
+
+        mapping_shape={}
+        for col in mapping_fields["data"]:
+            filename = col["filename"]
+            if mapping_shape.get(filename) is None:
+                type_dataframe = "pd.DataFrame" if filename.endswith(".shp") else "gd.DataFrame"
+                mapping_shape[filename] = type_dataframe
+
         for root, dirs, files in os.walk(shapefile_folder):
             for file in files:
                 file_path=os.path.join(root, file)
@@ -66,10 +74,10 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                     list_files_shp.append([file_path,file])
                 elif file.endswith(".csv") or  file.endswith(".xls") or file.endswith(".xlsx"):
                     list_files_csv.append([file_path,file])
-        list_table_shp=[file[:-4] for file_path,file in list_files_dbf] 
+        list_table_shp=[file[:-4] for file_path,file in list_files_dbf]
         list_create =[]
-        list_files_dbf =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp]   
-        list_files_csv =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp] 
+        list_files_dbf =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp]
+        list_files_csv =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp]
         map_files ={load_dbf:(False,list_files_dbf),load_csv_or_excel:(False,list_files_csv),load_shapefile:(True,list_files_shp)}
         for load_func,cmd in map_files.items():
             is_shape,list_files_spec = cmd
@@ -77,7 +85,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                 table_name,map_create,info = analyze_file(file,file_path,group_id,load_func,is_shape,None)
                 map_results[table_name]=info
                 list_create.append([map_create,info])
-            
+
         for map_create,info in list_create:
             for col, tipo in map_create.items():
                 column_response = ColumnResponse(
@@ -90,7 +98,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                 )
                 if info.srid is not None:
                     column_response.srid=info.srid
-                    
+
                 mapping_fields.data.append(column_response)
         list_files=[file_path for file_path,file in list_files_dbf+list_files_shp]
         async with async_session_Db() as sessionpg:
