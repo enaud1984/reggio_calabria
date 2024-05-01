@@ -6,7 +6,7 @@ from multiprocessing.pool import ThreadPool
 
 import psycopg2
 
-from config import LIST_LOAD, POSTGIS_TYPES_MAPPING, POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_PORT, POSTGRES_SERVER, POSTGRES_USER, engine_Db_no_async, APP, CHUNCKSIZE
+from config import CUSTOM_SCHEMAS, LIST_LOAD, POSTGIS_TYPES_MAPPING, POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_PORT, POSTGRES_SERVER, POSTGRES_USER, engine_Db_no_async, APP, CHUNCKSIZE
 import os
 
 from utility import find_specTable, change_column_types
@@ -17,6 +17,30 @@ from simpledbf import Dbf5
 
 def get_now():
     return datetime.datetime.now()
+
+
+class ImporterException(Exception):
+    def __init__(self, message,e):
+        self.e = e
+        self.message = message
+        super().__init__(f"Exception : {self.e} - {self.message}")
+
+def clean_group_id(group_id,exists=False):
+    return clean_column(group_id)
+
+def clean_column(group_id,exists=False):
+    if group_id is not None:
+        group_id = group_id.lower() if group_id is not None else group_id
+        if group_id in CUSTOM_SCHEMAS:
+            group_id =f"__{group_id}__"
+        
+        for special in ["-","&","|","+",":",";","%","&","*"," "]:
+            group_id =group_id.replace(special,"_")
+        group_id = group_id.strip()
+        for special in [f"{n}" for n in range(9)]:
+            if group_id.startswith(special):
+                group_id="_"+group_id+"_"
+    return group_id
 
 class Dbf_wrapper(Dbf5):
 
@@ -130,16 +154,23 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
     try:
         if not schema:
             schema=group_id
-        logger.info(f"Caricamento parallelo, srid={srid}, load_type={load_type}")
         map_results = {}
-        list_dbf=[k for k, file_name in map_files.items() if file_name.endswith('.dbf')]
-        list_csv=[k for k, file_name in map_files.items() if file_name.endswith('.csv')]
-        list_shp=[k for k, file_name in map_files.items() if file_name.endswith('.shp')]
-        list_excel=[k for k, file_name in map_files.items() if file_name.endswith('.xls') or file_name.endswith('.xlsx')]
-        logger.info(f"Caricamento parallelo:, dbf:{len(list_dbf)},shp:{len(list_shp)}")
+        map_filtered= {}
+        for column in map_tables_edited.data:
+            if column.filename not in map_filtered:
+                map_filtered[column.filename]=[]
+            if column.column not in [column.filename] and column.importing:
+                map_filtered[column.filename].append(column)
+            
+        list_dbf=[k for k, file_name in map_files.items() if file_name.endswith('.dbf') and file_name in map_filtered]
+        list_csv=[k for k, file_name in map_files.items() if file_name.endswith('.csv') and file_name in map_filtered]
+        list_shp=[k for k, file_name in map_files.items() if file_name.endswith('.shp') and file_name in map_filtered]
+        list_excel=[k for k, file_name in map_files.items() if file_name.endswith('.xls') or file_name.endswith('.xlsx') and file_name in map_filtered]
+        logger.info(f"validation_id:{validation_id}, dbf:{len(list_dbf)},shp:{len(list_shp)},csv:{len(list_csv)},excel:{len(list_excel)}")
         
         start_time_tot = get_now()
         if multithread: 
+            logger.info(f"Caricamento parallelo, srid={srid}, load_type={load_type}")
             num_thread =int(len(map_files)/2)+1
             tasks=[]
             pool = ThreadPool(num_thread)
@@ -169,6 +200,7 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
             results = [r.get() for r in tasks if r.get() is not None]
         else:
             results = []
+            logger.info(f"Caricamento sincrono, srid={srid}, load_type={load_type}")
             for k in list_dbf:
                 file_name = map_files[k]
                 table_name = k  # Usa il nome del file shape come nome della tabella
@@ -191,10 +223,12 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
                 results.append(res)
             
         map_errors = {}
-        for res,table_name,elapsed in results:
+        for res,table_name,elapsed,have_geom in results:
             file_name = map_files[table_name]
             if res:
                 map_results[file_name]=table_name
+                if have_geom and table_name not in list_shp:
+                    list_shp.append(table_name)
             else:
                 if "Error" not in map_results:
                     map_results["Error"]=[]
@@ -217,59 +251,126 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
 
 
 def load_dbf(shapefile_path, table_name,group_id=None,srid=None):
-    start_time = get_now()
-    dbf = Dbf_wrapper(shapefile_path)
-    df = dbf.to_dataframe()
-    df = df.rename(columns=str.lower)
-    if group_id:
-        df['group_id']=group_id
-    map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid)
-    elapsed = (get_now() - start_time).total_seconds()
-    return map_create, columns, _, columns_list,df,elapsed
-
-def load_csv(shapefile_path, table_name,group_id=None,srid=None):
-    import pandas as pd
-    start_time = get_now()
-    df=None
-    df = pd.read_csv(shapefile_path)
-    df = df.rename(columns=str.lower)
-    if group_id:
-        df['group_id']=group_id
-    map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid)
-    elapsed = (get_now() - start_time).total_seconds()
-    return map_create, columns, _, columns_list,df,elapsed
- 
-def load_excel(shapefile_path, table_name,group_id=None,srid=None):
-    import pandas as pd
-    from openpyxl import load_workbook
-    wb = load_workbook(filename = shapefile_path, data_only = True)
-    sheet_names = wb.sheetnames
-    map_total ={}
-    for sheet_name in sheet_names:
-        df = pd.read_excel(shapefile_path,sheet_name)
+    try:
+        start_time = get_now()
+        dbf = Dbf_wrapper(shapefile_path)
+        df = dbf.to_dataframe()
         df = df.rename(columns=str.lower)
+        df = df.rename(columns=clean_column)
+        
         if group_id:
             df['group_id']=group_id
         map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid)
-        info ={"map_create":map_create, "columns":columns,"columns_list":columns_list,"table_name":table_name,"df":df}
-        map_total[sheet_name]=namedtuple("Table",list(info))(**info)
-    return map_total
+        elapsed = (get_now() - start_time).total_seconds()
+        return map_create, columns, _, columns_list,df,elapsed
+    except Exception as e:
+        raise ImporterException(f"Error {e} load {shapefile_path}",e)
 
+def load_csv(shapefile_path, table_name,group_id=None,srid=None):
+    import pandas as pd
+    import geopandas as gpd
+    from shapely import wkt
+    import chardet
+    start_time = get_now()
+    df=None
+    encoding = None
+    try:
+        csv = None
+        with open(shapefile_path, 'rb') as f:
+            r = f.readline()
+            encoding = chardet.detect(r)
+            encoding = namedtuple("Encoding",list(encoding.keys()))(**encoding)
+            row=r.decode(encoding.encoding) 
+            if encoding.encoding!="utf_8":
+                csv = row.replace("\r","").replace("\n","").replace("'","")+"\n" 
+            for sep in[";","\t"]: 
+                if len(row.split(sep))>1: 
+                    break
+            for delimiter in["\r\n","\n","\r"]: 
+                if len(row.split(delimiter))>1: 
+                    break
+            if csv:
+                for line in f:
+                    csv+=line.decode(encoding.encoding,errors="ignore").replace("\r","").replace("\n","").replace("'","")+"\n" 
+        if csv:
+            with open(shapefile_path, 'wb') as f:
+                f.write(csv.encode())
+                    
+            df = pd.read_csv(shapefile_path,sep=sep,on_bad_lines="skip",lineterminator='\n')
+        else:
+            df = pd.read_csv(shapefile_path)
+        
+        df = df.rename(columns=str.lower)
+        df = df.rename(columns=clean_column)
+
+        if group_id:
+            df['group_id']=group_id
+        columns =list(df.columns)
+            
+        if "latitudine" in columns and "longitudine" in columns:
+            srid = 4326
+            df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.longitudine, df.latitudine), crs='epsg:4326')
+        elif "latitude" in columns and "longitude" in columns:
+            srid = 4326
+            df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.longitude, df.latitude), crs='epsg:4326')
+        elif "geometry" in columns:
+            srid = 4326
+            df["geometry"] = df["geometry"].apply(wkt.loads)
+            df = gpd.GeoDataFrame(df, crs='epsg:4326')
+        map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid)
+        elapsed = (get_now() - start_time).total_seconds()
+        return map_create, columns, srid, columns_list,df,elapsed
+    except Exception as e:
+        raise ImporterException(f"Error {e} load {shapefile_path} excpected utf8 encoding:{encoding}",e)
+        
+def load_excel(shapefile_path, table_name,group_id=None,srid=None):
+    import pandas as pd
+    import geopandas as gpd
+    from shapely import wkt
+    from openpyxl import load_workbook
+    try:
+        wb = load_workbook(filename = shapefile_path, data_only = True)
+        sheet_names = wb.sheetnames
+        map_total ={}
+        for sheet_name in sheet_names:
+            df = pd.read_excel(shapefile_path,sheet_name)
+            df = df.rename(columns=str.lower)
+            df = df.rename(columns=clean_column)
+            columns =list(df.columns)
+            if "latitudine" in columns and "longitudine" in columns:
+                srid = 4326
+                df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.longitudine, df.latitudine), crs='epsg:4326')
+            elif "latitude" in columns and "longitude" in columns:
+                srid = 4326
+                df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.longitude, df.latitude), crs='epsg:4326')
+            elif "geometry" in columns:
+                srid = 4326
+                df["geometry"] = df["geometry"].apply(wkt.loads)
+                df = gpd.GeoDataFrame(df, crs='epsg:4326')
+            if group_id:
+                df['group_id']=group_id
+            map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid)
+            info ={"map_create":map_create, "columns":columns,"columns_list":columns_list,"table_name":table_name,"df":df}
+            map_total[sheet_name]=namedtuple("Table",list(info))(**info)
+        return map_total
+    except Exception as e:
+        raise ImporterException(f"Error {e} load {shapefile_path}",e)
+    
 def load_csv_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
     try:
         #import pandas as pd
         start_time = get_now()
         map_create, columns, _, columns_list,df,elapsed=load_csv(shapefile_path,table_name,group_id,srid_validation)
-        json_types=find_specTable(map_tables_edited,table_name)
+        json_types = find_specTable(map_tables_edited,table_name)
         df = change_column_types(df, json_types)
         res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine)
         elapsed=(get_now() - start_time).total_seconds()
         logger.info(f"caricato {table_name},map_create:{map_create},elapsed:{elapsed}")
-        return res,table_name,elapsed
+        return res,table_name,elapsed,hasattr(df,"to_postgis")
     except Exception as e:
-        logger.error(f"Error load_dbf_to_postgis table {table_name}: {e}",stack_info=True)
+        logger.error(f"Error load_csv_to_postgis table {table_name}: {e}",stack_info=True)
         elapsed=(get_now() - start_time).total_seconds()
-        return False,table_name,elapsed
+        return False,table_name,elapsed,hasattr(df,"to_postgis")
 
 def load_excel_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
     try:
@@ -287,11 +388,11 @@ def load_excel_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,s
             elapsed=(get_now() - start_time).total_seconds()
             logger.info(f"caricato {table_name},map_create:{map_create},elapsed:{elapsed}")
         elapsed=(get_now() - start_time).total_seconds()
-        return res,table_name,elapsed
+        return res,table_name,elapsed,hasattr(df,"to_postgis")
     except Exception as e:
-        logger.error(f"Error load_dbf_to_postgis table {table_name}: {e}",stack_info=True)
+        logger.error(f"Error load_excel_to_postgis table {table_name}: {e}",stack_info=True)
         elapsed=(get_now() - start_time).total_seconds()
-        return False,table_name,elapsed
+        return False,table_name,elapsed,hasattr(df,"to_postgis")
 
 def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
     try:
@@ -303,11 +404,11 @@ def load_dbf_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,sch
         res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine)
         elapsed=(get_now() - start_time).total_seconds()
         logger.info(f"caricato {table_name},map_create:{map_create},elapsed:{elapsed}")
-        return res,table_name,elapsed
+        return res,table_name,elapsed,False
     except Exception as e:
         logger.error(f"Error load_dbf_to_postgis table {table_name}: {e}",stack_info=True)
         elapsed=(get_now() - start_time).total_seconds()
-        return False,table_name,elapsed
+        return False,table_name,elapsed,False
 
 def get_map_files(validation_id,conn_str_db):
     map_files={}
@@ -443,11 +544,11 @@ def get_columns_shapefile(shapefile_path,table_name,gdf, srid):
     #            ele_new = ele.replace("Z", "").replace("z", "")#.replace(number_str, "25832")
     #            #columns_list.append("geometry_2D")
     #            gdf_types_list.append(ele_new)
-    map_create = {key: value for key, value in zip(columns_list, gdf_types_list)}
+    map_create = {clean_column(key): value for key, value in zip(columns_list, gdf_types_list)}
     map_create_date = {}
 
     map_create.update(map_create_date)
-    columns = ", ".join([f"{column} {dtype}" for column, dtype in map_create.items()])
+    columns = ", ".join([f"{clean_column(column)} {dtype}" for column, dtype in map_create.items()])
     return map_create,columns,srid,columns_list
 
 def load_shapefile_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
@@ -458,13 +559,13 @@ def load_shapefile_to_postgis(shapefile_path,map_tables_edited,table_name,conn_s
         json_types=find_specTable(map_tables_edited,table_name)
         gdf=change_column_types(gdf, json_types)
         if not resp:
-            return False,table_name,elapsed
+            return False,table_name,elapsed,False
         res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,gdf,columns_list,engine)
-        return res,table_name,elapsed
+        return res,table_name,elapsed,True
     except Exception as e:
         elapsed=(get_now() - start_time).total_seconds()
         logger.error(f"Error creating table {table_name}: {e},map_create:{map_create}")
-        return False,table_name,elapsed
+        return False,table_name,elapsed,True
 
 def load_shapefile(shapefile_path,table_name,group_id,srid):
     import geopandas as gpd

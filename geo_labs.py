@@ -74,7 +74,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         list_table_shp=[file[:-4] for file_path,file in list_files_dbf]
         list_create =[]
         list_files_dbf =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp]
-        list_files_csv =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp]
+        list_files_csv =[(file_path,file) for file_path,file in list_files_csv if file[:-4] not in list_table_shp]
         list_files_excel =[(file_path,file) for file_path,file in list_files_excel if file[:-4] not in list_table_shp]
         map_files ={load_dbf:(False,list_files_dbf),
                     load_csv:(False,list_files_csv),
@@ -83,16 +83,29 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         for load_func,cmd in map_files.items():
             is_shape,list_files_spec = cmd
             for file_path,file in list_files_spec:
-                table_name,map_create,info = analyze_file(file,file_path,group_id,load_func,is_shape,None)
-                if is_shape is None:
-                    list_map_create = map_create
-                    list_info = info
-                    for i in range(len(list_info)):
-                        map_results[list_info[i].table_name]=info
-                        list_create.append([list_map_create[i],list_info[i]])
-                else:
-                    map_results[table_name]=info
-                    list_create.append([map_create,info])
+                try:
+                    table_name,map_create,info = analyze_file(file,file_path,group_id,load_func,is_shape,None)
+                    if is_shape is None:
+                        list_map_create = map_create
+                        list_info = info
+                        for i in range(len(list_info)):
+                            map_results[f"{table_name}.{list_info[i].table_name}"]=info
+                            list_create.append([list_map_create[i],list_info[i]])
+                    else:
+                        map_results[table_name]=info
+                        list_create.append([map_create,info])
+                except Exception as e:
+                    column_response = ColumnResponse(
+                        filename=file,
+                        schema_name=group_id,
+                        table=f"Error {e.message}" if hasattr(e,"message") else f"{e}",
+                        column="Error",
+                        tipo="Text",
+                        column_name="Error",
+                        importing=False
+                    )
+                    mapping_fields.data.append(column_response)
+                    logger.error(f"Error:{e},group_id:{group_id}")
 
                     
                     
@@ -100,17 +113,17 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
             for col, tipo in map_create.items():
                 column_response = ColumnResponse(
                     filename=info.file,
+                    schema_name=group_id,
                     table=info.table_name,
                     column=col,
                     tipo=tipo,
+                    srid=info.srid if hasattr(info,"srid") and info.srid is not None else 0,
                     column_name=col,
                     importing=True
                 )
-                if info.srid is not None:
-                    column_response.srid=info.srid
 
                 mapping_fields.data.append(column_response)
-        list_files=[file_path for file_path,file in list_files_dbf+list_files_shp]
+        list_files=[file_path for file_path,file in list_files_dbf+list_files_shp+list_files_csv+list_files_excel]
         async with async_session_Db() as sessionpg:
             async with sessionpg.begin():
                 request_dal = RichiesteUpload(sessionpg)
@@ -127,7 +140,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                                                                 USERFILE=list_files,
                                                                 RESPONSE=mapping_fields.to_dict())
 
-                logger.info(f"OK WRITE ON SINFIDB, VALIDATION_ID: {res_PostGres.ID_SHAPE},shapefile_folder:{shapefile_folder},file_path_zip:{file_path_zip}")
+                logger.info(f"OK WRITE ON DATABASE, VALIDATION_ID: {res_PostGres.ID_SHAPE},shapefile_folder:{shapefile_folder},file_path_zip:{file_path_zip}")
         resp= json.loads(mapping_fields.model_dump_json())
         if len(map_results)==0:
             return JSONResponse(content={"error":f" data not found in {file_path_zip}"}, status_code=404)

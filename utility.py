@@ -10,6 +10,7 @@ import psycopg2
 
 from config import ENABLE_POOL_LOAD, APP, POSTGIS_TYPES_MAPPING, engine_Db_no_async, CHUNCKSIZE
 
+
 logger = logging.getLogger(APP)
 
 def unzip(path_to_zip_file,directory_to_extract_to):
@@ -22,7 +23,9 @@ def unzip(path_to_zip_file,directory_to_extract_to):
 
 
 def analyze_file(file,file_path,group_id,load_func,is_shape=False,srid=None):
+    from utility_postgres import clean_column
     table_name = file[:-4]
+    table_name = clean_column(table_name)
     if is_shape is None:
         #map_total=load_excel(shapefile_path, table_name,group_id=None,srid=None):
         map_total = load_func(file_path,table_name,group_id,None)
@@ -35,7 +38,7 @@ def analyze_file(file,file_path,group_id,load_func,is_shape=False,srid=None):
                 "file":file_path,
                 "table_name":sheet_name, 
                 "columns_list":info.columns_list, 
-                "srid": None,
+                "srid": srid,
                 "map_create":info.map_create
             }
             info = namedtuple("Info",list(info.keys()))(**info)
@@ -61,7 +64,7 @@ def analyze_file(file,file_path,group_id,load_func,is_shape=False,srid=None):
             "table_name":table_name, 
             "columns_list":columns_list, 
             "elapsed":elapsed,
-            "srid": None,
+            "srid": srid,
             "map_create":map_create
         }
     info = namedtuple("Info",list(info.keys()))(**info)
@@ -82,6 +85,7 @@ def change_column_types(df, json_types):
         dftype=POSTGIS_TYPES_MAPPING.get(tt)
         if dftype is not None and field.tipo!=dftype:
             df[colonna] = df[colonna].astype(dftype)
+            
     return df
 
 def get_md5(fname,path="to_upload"):

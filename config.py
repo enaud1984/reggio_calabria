@@ -51,7 +51,7 @@ GEOSERVER_PUBLIC_LOCATION=os.getenv('GEOSERVER_PUBLIC_LOCATION', 'http://localho
 GEOSERVER_LOCATION=os.getenv('GEOSERVER_LOCATION', f'http://{GEOSERVER_LB_HOST_IP}:{GEOSERVER_LB_PORT}/geoserver/')
 GEOSERVER_ADMIN_USER=os.getenv('GEOSERVER_ADMIN_USER', f'admin')
 GEOSERVER_ADMIN_PASSWORD=os.getenv('GEOSERVER_ADMIN_PASSWORD', f'geoserver')
-GEOSERVER_DB_SERVICES=os.getenv('GEOSERVER_DB_SERVICES', POSTGRES_SERVER)
+GEOSERVER_DB_SERVICES=os.getenv('GEOSERVER_DB_SERVICES', "db")# solo su docker si usa db altrimenti POSTGRES_SERVER)
 GEOSERVER_DB_PORT=eval(os.getenv('GEOSERVER_DB_PORT', "5432"))
 
 EVICTOR_RUN_PERIODICITY=eval(os.getenv('GS_EVICTOR_RUN_PERIODICITY','300'))
@@ -80,3 +80,5 @@ POSTGIS_TYPES_MAPPING = {
         'int32': 'integer',
         'int16': 'integer',
     }
+
+CUSTOM_SCHEMAS=['information_schema','public','pg_catalog','geo_labs']
