@@ -261,7 +261,7 @@ async def upload_model(group_id, code_str: str):
                                                        CODE=code_str,
                                                        PARAMS=None, #risposta di una load precedente per ID_SHAPE? ci vuole?
                                                        LIBRARY=False)
-                id_model = res.ID_MODEL
+                ID_MODEL = res.ID_MODEL
         logger.info(f"upload_model del modello group_id:{group_id},ID_MODEL:{id_model}, code_str: {code_str}")
     except Exception as e:
         logger.error(f"Error:{e}", stack_info=True)
