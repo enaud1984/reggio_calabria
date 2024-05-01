@@ -7,6 +7,8 @@ import shutil
 import subprocess
 import traceback
 from datetime import datetime
+from typing import  Union
+from typing_extensions import Annotated
 from sqlalchemy import create_engine
 from starlette.responses import JSONResponse
 
@@ -14,7 +16,7 @@ from DAO import CodeInput, ColumnResponse, MapTables
 from config import APP, DATABASE_URL_POSTGRES, LIST_LANG, LIST_LOAD, ONSTART_DROP_CREATE, POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, PATH_TO_UPLOAD, \
     LIST_SRID, Base, async_session_Db
 
-from fastapi import FastAPI, UploadFile, File, Query
+from fastapi import Body, FastAPI, UploadFile, File, Query
 
 from importerLayers import delete_layers, publish_layers
 from richieste_dal import RichiesteUpload, RichiesteLoad, RichiesteModel, RichiesteExecution
@@ -282,7 +284,32 @@ async def upload_lib(group_id, file_zip: UploadFile = File(...)):
     pass
 
 @app.post("/upload_model")
-async def upload_model(group_id, code_str: str):
+async def upload_model(group_id:str, code_str:Annotated[str, Body(embed = False,
+    media_type= "text",
+    title = "codice del modello",
+    description="Inserire il codice del modello t3enendo conto che %{params}% viene specificato a runtime" ,
+    example="""import pandas as pd
+import geopandas as gpd
+import numpy as np
+pippo=eval(os.getenv("PIPPO"),"condotte"))
+
+#condotte = gpd.read_file(shapefile_path)
+#condotte = condotte.rename(columns=str.lower)
+df = pd.DataFrame({'a': ['abc', 'def', 'ghi', 'kjl'],
+                   'b': [2, 5, 7, 8],
+                   'c': [1.2, 3, 4, 6]})
+num_cols = [col for col in df.columns if df[col].dtype in [np.int64, np.float64]]
+quadratic_cols = [tuple(sorted((i,j))) for i in num_cols for j in num_cols]
+quad_col_pairs = list(set(quadratic_cols))
+
+for col_pair in quad_col_pairs:
+    col1, col2 = col_pair
+    quadratic_col = '{}*{}'.format(*col_pair)
+    df[quadratic_col] = df[col1] * df[col2]
+pippo["flusso"]=df[quadratic_col] 
+print(pippo.columns)
+df_out=df[quadratic_col] 
+    """)]):
     try:
         id_model=None
         async with async_session_Db() as session:
@@ -309,7 +336,7 @@ async def upload_model(group_id, code_str: str):
 async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output: dict,
                        language: str = Query(description="Selezionare linguaggio",enum=LIST_LANG),
                        model_id_or_code: str = Query(description="Selezionare la sorgente del codice",enum=["Model_id","Testo"]),
-                       model_id_code=None):
+                       model_id_code=Annotated[str, Body()]):
 
     from config import engine_Db_no_async,CHUNCKSIZE,connection_string
     logger.info(f"Esecuzione del modello group_id:{group_id}, shape_id: {shape_id}, language:{language}, mapping_output:  {mapping_output}")
