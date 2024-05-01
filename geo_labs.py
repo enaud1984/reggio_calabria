@@ -20,7 +20,7 @@ from importerLayers import delete_layers, publish_layers
 from richieste_dal import RichiesteUpload, RichiesteLoad, RichiesteModel, RichiesteExecution
 from utility import analyze_file, unzip, get_md5
 from utility_R import invoke_R
-from utility_postgres import create_schema, load_csv_or_excel, shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
+from utility_postgres import create_schema, load_csv, load_excel, shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
 import pandas as pd
 import geopandas as gd
 
@@ -55,8 +55,9 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         list_files_dbf = []
         list_files_shp = []
         list_files_csv = []
-        map_results={}
+        list_files_excel = []
 
+        map_results={}
         for root, dirs, files in os.walk(shapefile_folder):
             for file in files:
                 file_path=os.path.join(root, file)
@@ -65,20 +66,36 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                     table_name=file.split(".")[0]
                 elif file.endswith('.shp'):
                     list_files_shp.append([file_path,file])
-                elif file.endswith(".csv") or  file.endswith(".xls") or file.endswith(".xlsx"):
+                elif file.endswith(".csv"):
                     list_files_csv.append([file_path,file])
+                elif file.endswith(".xls") or file.endswith(".xlsx"):
+                    list_files_excel.append([file_path,file])
+                    
         list_table_shp=[file[:-4] for file_path,file in list_files_dbf]
         list_create =[]
         list_files_dbf =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp]
         list_files_csv =[(file_path,file) for file_path,file in list_files_dbf if file[:-4] not in list_table_shp]
-        map_files ={load_dbf:(False,list_files_dbf),load_csv_or_excel:(False,list_files_csv),load_shapefile:(True,list_files_shp)}
+        list_files_excel =[(file_path,file) for file_path,file in list_files_excel if file[:-4] not in list_table_shp]
+        map_files ={load_dbf:(False,list_files_dbf),
+                    load_csv:(False,list_files_csv),
+                    load_excel:(None,list_files_excel),
+                    load_shapefile:(True,list_files_shp),}
         for load_func,cmd in map_files.items():
             is_shape,list_files_spec = cmd
             for file_path,file in list_files_spec:
                 table_name,map_create,info = analyze_file(file,file_path,group_id,load_func,is_shape,None)
-                map_results[table_name]=info
-                list_create.append([map_create,info])
+                if is_shape is None:
+                    list_map_create = map_create
+                    list_info = info
+                    for i in range(len(list_info)):
+                        map_results[list_info[i].table_name]=info
+                        list_create.append([list_map_create[i],list_info[i]])
+                else:
+                    map_results[table_name]=info
+                    list_create.append([map_create,info])
 
+                    
+                    
         for map_create,info in list_create:
             for col, tipo in map_create.items():
                 column_response = ColumnResponse(
@@ -110,9 +127,12 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
                                                                 USERFILE=list_files,
                                                                 RESPONSE=mapping_fields.to_dict())
 
-                logger.info(f"OK WRITE ON SINFIDB, VALIDATION_ID: {res_PostGres.ID_SHAPE}")
+                logger.info(f"OK WRITE ON SINFIDB, VALIDATION_ID: {res_PostGres.ID_SHAPE},shapefile_folder:{shapefile_folder},file_path_zip:{file_path_zip}")
         resp= json.loads(mapping_fields.model_dump_json())
-        return JSONResponse(content=resp, status_code=200)
+        if len(map_results)==0:
+            return JSONResponse(content={"error":f" data not found in {file_path_zip}"}, status_code=404)
+        else:
+            return JSONResponse(content=resp, status_code=200)
     except Exception as e:
         logger.error(f"Error:{e},group_id:{group_id}", stack_info=True)
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -137,7 +157,7 @@ async def load_shapefile2postgis(validation_id: int,
                                                                 STATUS="LOAD SHAPEFILE",
                                                                 GROUP_ID=group_id,
                                                                 REQUEST=mapping_fields.to_dict())
-
+                logger.info(f"Load Shape files validation_id: {validation_id},res_PostGres:{res_PostGres}")
         #host='127.0.0.1' port='5444' dbname='postgres' user='postgres' password='postgres'
         conn_str_db: str = f"host='{POSTGRES_SERVER}' port='{POSTGRES_PORT}' dbname='{POSTGRES_DB}' user='{POSTGRES_USER}' password='{POSTGRES_PASSWORD}'"
                             
@@ -272,7 +292,7 @@ async def upload_model(group_id, code_str: str):
                             status_code=501)
 
 
-@app.post("/execute_code/")
+@app.post("/execute_code")
 async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output: dict,
                        language: str = Query(description="Selezionare linguaggio",enum=LIST_LANG),
                        model_id_or_code: str = Query(description="Selezionare la sorgente del codice",enum=["Model_id","Testo"]),
@@ -296,7 +316,9 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
             id_execution=res.ID_EXECUTION
     code=None
     results=None
-    layers=None
+    layers = []
+    tables = []    
+            
     if model_id_or_code == "Testo":
         code = model_id_code
     elif model_id_or_code == "Model_id":
@@ -313,8 +335,16 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
     # Esecuzione del codice
     if language == "python":
         try:
-            variables = {}
+            output = {}
             global_df = {}
+            code =f"""import sys
+from io import StringIO
+ # Crea un oggetto StringIO
+output = StringIO()
+# Sovrascrivi sys.stdout con l'oggetto StringIO
+sys.stdout = output
+{code}
+sys.stdout = sys.__stdout__"""
             async with async_session_Db() as session:
                 async with session.begin():
                     request_dal = RichiesteLoad(session)
@@ -325,7 +355,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
             for col in mapping_fields["data"]:
                 filename = col["filename"]
                 if mapping_shape.get(filename) is None:
-                    type_dataframe = "pd.DataFrame" if filename.endswith(".shp") else "gd.DataFrame"
+                    type_dataframe = "pd.DataFrame" if filename.endswith(".shp") else "gd.GeoDataFrame"
                     mapping_shape[filename] = type_dataframe
 
             for tablename,type_dataframe in mapping_shape.items():
@@ -336,15 +366,16 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                     df:pd.DataFrame = pd.read_sql_table(f"{group_id}.{tablename}",connection_string)
                     global_df[tablename] = df
                 
-            exec(code, global_df, variables)
-            layers = []
-            tables = []    
+            exec(code, global_df, output)
+            # Cattura l'output della funzione my_function()
+            captured_output = output["output"].getvalue()
+           
             for k,v in mapping_output.items():
                 df_result = None
                 table_name = v
                 #df_out=cercare su code_input.data il nome della variabile con df_out = True
-                df_result = variables[k]
-                if hasattr(df_result, "crs"):
+                df_result = output[k]
+                if hasattr(df_result, "crs") or type(df_result) == gd.GeoDataFrame:
                     gdf:gd.GeoDataFrame = df_result
                     gdf.to_postgis(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
                     layers.append(table_name)
@@ -352,13 +383,18 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                     df:pd.DataFrame=df_result
                     df.to_sql(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
                     tables.append(table_name)
+                elif k=="output":
+                    results = captured_output
+                     # Stampalo
+                    print("Output catturato:", captured_output)
+            
             layers = publish_layers(group_id,layers)
         except Exception as e:
             logger.error(f"Error:{e},id_execution:{id_execution}", stack_info=True)
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
     elif language == "r":
         try:
-            result,variables=invoke_R(code)
+            results,variables=invoke_R(code)
             layers = []
             tables = []
             for k,v in mapping_output.items():
@@ -375,8 +411,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                     df.to_sql(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
                     tables.append(table_name)
             layers = publish_layers(group_id,layers)
-            results={}
-
+            
         except Exception as e:
             logger.error(f"Error:{e},id_execution:{id_execution}", stack_info=True)
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
@@ -386,4 +421,4 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
             request_dal = RichiesteExecution(session)
             res = await request_dal.update_request(ID_EXECUTION=id_execution,
                                                    RESULTS=results)
-    return JSONResponse(status_code=200, content={"layers": layers,"results":results})
+    return JSONResponse(status_code=200, content={"layers": layers,"tables":tables,"results":results})

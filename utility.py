@@ -23,7 +23,25 @@ def unzip(path_to_zip_file,directory_to_extract_to):
 
 def analyze_file(file,file_path,group_id,load_func,is_shape=False,srid=None):
     table_name = file[:-4]
-    if is_shape:
+    if is_shape is None:
+        #map_total=load_excel(shapefile_path, table_name,group_id=None,srid=None):
+        map_total = load_func(file_path,table_name,group_id,None)
+        list_info = []
+        list_map_create = []
+        for sheet_name,info in map_total.items():
+            list_map_create.append(info.map_create)
+            info={
+                "columns":info.columns,
+                "file":file_path,
+                "table_name":sheet_name, 
+                "columns_list":info.columns_list, 
+                "srid": None,
+                "map_create":info.map_create
+            }
+            info = namedtuple("Info",list(info.keys()))(**info)
+            list_info.append(info)
+        return table_name,list_map_create,list_info
+    elif is_shape:
         res, columns, gdf, columns_list, start_time, elapsed,map_create = load_func(file_path,table_name,group_id,None)
         srid  = gdf.crs.to_epsg()
         info ={

@@ -1,3 +1,4 @@
+from collections import namedtuple
 import logging
 import datetime
 import struct
@@ -132,7 +133,9 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
         logger.info(f"Caricamento parallelo, srid={srid}, load_type={load_type}")
         map_results = {}
         list_dbf=[k for k, file_name in map_files.items() if file_name.endswith('.dbf')]
+        list_csv=[k for k, file_name in map_files.items() if file_name.endswith('.csv')]
         list_shp=[k for k, file_name in map_files.items() if file_name.endswith('.shp')]
+        list_excel=[k for k, file_name in map_files.items() if file_name.endswith('.xls') or file_name.endswith('.xlsx')]
         logger.info(f"Caricamento parallelo:, dbf:{len(list_dbf)},shp:{len(list_shp)}")
         
         start_time_tot = get_now()
@@ -145,7 +148,16 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
                 table_name = k  # Usa il nome del file shape come nome della tabella
                 task = pool.apply_async(load_dbf_to_postgis, args=(file_name,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
                 tasks.append(task)
-
+            for k in list_csv:
+                file_name = map_files[k]
+                table_name = k  # Usa il nome del file shape come nome della tabella
+                task = pool.apply_async(load_csv_to_postgis, args=(file_name,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
+                tasks.append(task)
+            for k in list_excel:
+                file_name = map_files[k]
+                table_name = k  # Usa il nome del file shape come nome della tabella
+                task = pool.apply_async(load_excel_to_postgis, args=(file_name,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid))
+                tasks.append(task)
             for k in list_shp:
                 file_name = map_files[k]
                 table_name = k  # Usa il nome del file shape come nome della tabella
@@ -161,6 +173,16 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
                 file_name = map_files[k]
                 table_name = k  # Usa il nome del file shape come nome della tabella
                 res = load_dbf_to_postgis(file_name,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid)
+                results.append(res)
+            for k in list_csv:
+                file_name = map_files[k]
+                table_name = k  # Usa il nome del file shape come nome della tabella
+                res = load_csv_to_postgis(file_name,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid)
+                results.append(res)
+            for k in list_excel:
+                file_name = map_files[k]
+                table_name = k  # Usa il nome del file shape come nome della tabella
+                res = load_excel_to_postgis(file_name,map_tables_edited, table_name,conn_str,schema,engine,group_id,load_type,srid)
                 results.append(res)
             for k in list_shp:
                 file_name = map_files[k]
@@ -205,14 +227,11 @@ def load_dbf(shapefile_path, table_name,group_id=None,srid=None):
     elapsed = (get_now() - start_time).total_seconds()
     return map_create, columns, _, columns_list,df,elapsed
 
-def load_csv_or_excel(shapefile_path, table_name,group_id=None,srid=None):
+def load_csv(shapefile_path, table_name,group_id=None,srid=None):
     import pandas as pd
     start_time = get_now()
     df=None
-    if shapefile_path.endswith(".csv"):
-        df = pd.read_csv(shapefile_path)
-    elif shapefile_path.endswith(".xls") or shapefile_path.endswith(".xlsx"):
-        df = pd.read_excel(shapefile_path)
+    df = pd.read_csv(shapefile_path)
     df = df.rename(columns=str.lower)
     if group_id:
         df['group_id']=group_id
@@ -220,16 +239,54 @@ def load_csv_or_excel(shapefile_path, table_name,group_id=None,srid=None):
     elapsed = (get_now() - start_time).total_seconds()
     return map_create, columns, _, columns_list,df,elapsed
  
-def load_csv_or_excel_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
+def load_excel(shapefile_path, table_name,group_id=None,srid=None):
+    import pandas as pd
+    from openpyxl import load_workbook
+    wb = load_workbook(filename = shapefile_path, data_only = True)
+    sheet_names = wb.sheetnames
+    map_total ={}
+    for sheet_name in sheet_names:
+        df = pd.read_excel(shapefile_path,sheet_name)
+        df = df.rename(columns=str.lower)
+        if group_id:
+            df['group_id']=group_id
+        map_create, columns, _, columns_list = get_columns_shapefile(shapefile_path,table_name,df,srid)
+        info ={"map_create":map_create, "columns":columns,"columns_list":columns_list,"table_name":table_name,"df":df}
+        map_total[sheet_name]=namedtuple("Table",list(info))(**info)
+    return map_total
+
+def load_csv_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
     try:
         #import pandas as pd
         start_time = get_now()
-        map_create, columns, _, columns_list,df,elapsed=load_csv_or_excel(shapefile_path,table_name,group_id,srid_validation)
+        map_create, columns, _, columns_list,df,elapsed=load_csv(shapefile_path,table_name,group_id,srid_validation)
         json_types=find_specTable(map_tables_edited,table_name)
         df = change_column_types(df, json_types)
         res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine)
         elapsed=(get_now() - start_time).total_seconds()
         logger.info(f"caricato {table_name},map_create:{map_create},elapsed:{elapsed}")
+        return res,table_name,elapsed
+    except Exception as e:
+        logger.error(f"Error load_dbf_to_postgis table {table_name}: {e}",stack_info=True)
+        elapsed=(get_now() - start_time).total_seconds()
+        return False,table_name,elapsed
+
+def load_excel_to_postgis(shapefile_path,map_tables_edited,table_name,conn_str,schema,engine,group_id,load_type,srid_validation):
+    try:
+        #import pandas as pd
+        start_time = get_now()
+        map_total=load_excel(shapefile_path,table_name,group_id,srid_validation)
+        for sheet_name,info in map_total.items():
+            df = info.df
+            columns = info.columns
+            columns_list = info.columns_list
+            map_create = info.map_create
+            json_types=find_specTable(map_tables_edited,sheet_name)
+            df = change_column_types(df, json_types)
+            res = load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_list,engine)
+            elapsed=(get_now() - start_time).total_seconds()
+            logger.info(f"caricato {table_name},map_create:{map_create},elapsed:{elapsed}")
+        elapsed=(get_now() - start_time).total_seconds()
         return res,table_name,elapsed
     except Exception as e:
         logger.error(f"Error load_dbf_to_postgis table {table_name}: {e}",stack_info=True)
