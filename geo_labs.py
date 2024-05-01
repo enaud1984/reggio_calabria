@@ -339,9 +339,7 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                     df:pd.DataFrame=df_result
                     df.to_sql(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
                     tables.append(table_name)
-            #TODO:pubblicazione su geoserver
             layers = publish_layers(group_id,layers)
-
         except Exception as e:
             logger.error(f"Error:{e},id_execution:{id_execution}", stack_info=True)
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
@@ -363,17 +361,16 @@ async def execute_code(group_id:str, shape_id: int, params: dict, mapping_output
                     df:pd.DataFrame=df_result
                     df.to_sql(table_name, engine, if_exists='replace', index=False, schema=group_id,chunksize=CHUNCKSIZE)
                     tables.append(table_name)
-            #TODO:pubblicazione su geoserver
             layers = publish_layers(group_id,layers)
             results={}
-            #return JSONResponse(status_code=200, content={"result": result})
+
         except Exception as e:
             logger.error(f"Error:{e},id_execution:{id_execution}", stack_info=True)
             return JSONResponse(status_code=500, content=f"Errore durante l'esecuzione dello script Python {e}")
 
     async with async_session_Db() as session:
         async with session.begin():
-            res = RichiesteExecution(session)
+            request_dal = RichiesteExecution(session)
             res = await request_dal.update_request(ID_EXECUTION=id_execution,
                                                    RESULTS=results)
     return JSONResponse(status_code=200, content={"layers": layers,"results":results})
