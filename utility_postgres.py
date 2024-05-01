@@ -208,6 +208,7 @@ def load_dbf(shapefile_path, table_name,group_id=None,srid=None):
 def load_csv_or_excel(shapefile_path, table_name,group_id=None,srid=None):
     import pandas as pd
     start_time = get_now()
+    df=None
     if shapefile_path.endswith(".csv"):
         df = pd.read_csv(shapefile_path)
     elif shapefile_path.endswith(".xls") or shapefile_path.endswith(".xlsx"):
