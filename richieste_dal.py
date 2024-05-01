@@ -38,6 +38,8 @@ class RichiesteUpload:
             q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
         elif GROUP_ID is None and ID_SHAPE is not None:
             q = await self.db_session.execute(stmt.where(self.model.ID_SHAPE == ID_SHAPE).offset(skip).limit(limit))
+        else:
+            q = await self.db_session.execute(stmt.offset(skip).limit(limit))
         return q.scalars().all()
 
     async def get_request(self, id=None):
@@ -114,6 +116,8 @@ class RichiesteLoad:
             q = await self.db_session.execute(stmt.where(self.model.GROUP_ID == GROUP_ID).offset(skip).limit(limit))
         elif GROUP_ID is None and ID_SHAPE is not None:
             q = await self.db_session.execute(stmt.where(self.model.ID_SHAPE == ID_SHAPE).offset(skip).limit(limit))
+        else:
+            q = await self.db_session.execute(stmt.offset(skip).limit(limit))
         return q.scalars().all()
 
     async def get_request(self, ID_SHAPE=None):

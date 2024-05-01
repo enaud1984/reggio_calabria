@@ -23,7 +23,7 @@ from utility_R import invoke_R
 from utility_postgres import create_schema, load_csv, load_excel, shapeFile2Postgis, load_dbf, load_shapefile,get_map_files
 import pandas as pd
 import geopandas as gd
-
+from response import resp_load_shapefile2postgis,resp_load_zip
 
 app = FastAPI(summary= "Applicativo per la gestione di file shape",
               description=""" Geo_labs laboratorio condiviso""",
@@ -41,7 +41,7 @@ def startup():
             logger.error(f"Error:{e}", stack_info=True)
         
             
-@app.put("/upload_zip")
+@app.put("/upload_zip",responses=resp_load_zip)
 async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
     try:
         file_path_zip=os.path.join(PATH_TO_UPLOAD,str(file_zip.filename))
@@ -150,7 +150,7 @@ async def upload_zip_file(group_id:str, file_zip: UploadFile = File(...)):
         logger.error(f"Error:{e},group_id:{group_id}", stack_info=True)
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-@app.post("/load_shapefile2postgis")
+@app.post("/load_shapefile2postgis",responses=resp_load_shapefile2postgis)
 async def load_shapefile2postgis(validation_id: int,
                                  group_id: str,
                                  schema: str = "public",
