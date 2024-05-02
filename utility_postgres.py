@@ -150,7 +150,7 @@ class Dbf_wrapper(Dbf5):
 
 
 def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_str,schema=None,
-                      engine=engine_Db_no_async, srid=None,load_type="append",multithread=False):
+                      engine=engine_Db_no_async, srid=None,load_type="append",multithread=True):
     from importerLayers import publish_layers
     try:
         if not schema:
