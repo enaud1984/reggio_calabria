@@ -6,6 +6,8 @@ class Data:
     input = {}
     def __init__(self,tables) -> None:
         input={}
+        if type(tables)==str:
+            tables = [tables]
         for table in tables:
             pickle_file =os.path.join("data",f"{table}.pickle")
             if os.path.exists(pickle_file):
