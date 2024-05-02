@@ -23,4 +23,9 @@
        	            }
        	            una riga per ogni variabile trovata nel modello come %HOSTNAME%
 
-3- RUN  (publish_layers con layer=1 tabella:["output_table"])
+
+4- analyze_model(id_model, id_load_shape, params={a:"ciao", b="X"}): -> tutte le variabili del modello, shape_table + param
+    insert in model_param [id_model_param, id_model, id_load_shape, map_table,params]
+
+
+5- execute--> (id_model, id_load_shape, id_model_param)
