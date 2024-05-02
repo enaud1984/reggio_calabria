@@ -1,6 +1,8 @@
+import pickle
 import sys
 from io import StringIO
-
+from store import Data
+import os
 # Funzione per catturare l'output di print()
 def capture_output(func):
     # Crea un oggetto StringIO
@@ -30,11 +32,23 @@ def my_function():
     return a,b
 a,b = my_function()
 print("risultato ",a,b)
+print("comuni ",comuni.columns)
+ciccio=comuni
 sys.stdout = sys.__stdout__
 """
-output={}
+output = {}
+#header ="""
+
+
+input = Data(["comuni","condotte"]).input
 # Esegui il codice con exec()
-exec(code_to_execute,{"c":12},output)
+input.update({"c":12})
+""" 
+exec(header,{},output)
+input=output["input"]
+#"""
+output = {}
+exec(code_to_execute,input,output)
 
 # Cattura l'output della funzione my_function()
 captured_output = output["output"].getvalue()

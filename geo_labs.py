@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import shutil
-import subprocess
+import numpy as np
 import traceback
 from datetime import datetime
 from typing import  Union
@@ -324,6 +324,49 @@ df_out=df[quadratic_col]
                                                        LIBRARY=False)
                 ID_MODEL = res.ID_MODEL
         logger.info(f"upload_model del modello group_id:{group_id},ID_MODEL:{id_model}, code_str: {code_str}")
+        output={}
+        code =f"""import sys
+from io import StringIO
+ # Crea un oggetto StringIO
+output = StringIO()
+# Sovrascrivi sys.stdout con l'oggetto StringIO
+sys.stdout = output
+{code_str}
+sys.stdout = sys.__stdout__"""
+        # Esegui il codice con exec()
+        exec(code,{},output)
+        # Cattura l'output della funzione my_function()
+        captured_output = output["output"].getvalue()
+        layers = []
+        tables = []
+        results = {}
+        map_obj = {}
+        for k,v in output.items():
+            df_result = None
+            df_result = v
+            if hasattr(df_result, "crs") or type(df_result) == gd.GeoDataFrame:
+                gdf:gd.GeoDataFrame = df_result
+                layers.append(k)
+            elif type(df_result) == pd.DataFrame:
+                df:pd.DataFrame=df_result
+                tables.append(k)
+            elif k=="output":
+                # Stampalo
+                print("Output catturato:", captured_output)
+            elif type(v) in[dict,list,str,float,datetime]:
+                results[k]=v
+            else:
+                map_obj[k]=f"{v}"
+                
+        return JSONResponse(content={"output": captured_output,
+                                     "variables":results,
+                                     "object":map_obj,
+                                     "group_id":group_id,
+                                     "tables":tables,
+                                     "layers":layers,
+                                     "id":ID_MODEL
+                                     },
+                            status_code=200)
     except Exception as e:
         logger.error(f"Error:{e}", stack_info=True)
         return JSONResponse(content={"error": str(e),"group_id":group_id,

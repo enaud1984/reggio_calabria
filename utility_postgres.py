@@ -1,6 +1,7 @@
 from collections import namedtuple
 import logging
 import datetime
+import pickle
 import struct
 from multiprocessing.pool import ThreadPool
 
@@ -162,12 +163,18 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
             if column.column not in [column.filename] and column.importing:
                 map_filtered[column.filename].append(column)
             
-        list_dbf=[k for k, file_name in map_files.items() if file_name.endswith('.dbf') and file_name in map_filtered]
-        list_csv=[k for k, file_name in map_files.items() if file_name.endswith('.csv') and file_name in map_filtered]
-        list_shp=[k for k, file_name in map_files.items() if file_name.endswith('.shp') and file_name in map_filtered]
+        map_exists = {} 
+        for table in list_dbf:
+            pickle_file =os.path.join("data",f"{table}.pickle")
+            if os.path.exists(pickle_file):
+                map_exists[table]=pickle_file
+        
+        list_dbf=[k for k, file_name in map_files.items() if file_name.endswith('.dbf') and file_name in map_filtered and k not in map_exists]
+        list_csv=[k for k, file_name in map_files.items() if file_name.endswith('.csv') and file_name in map_filtered and k not in map_exists]
+        list_shp=[k for k, file_name in map_files.items() if file_name.endswith('.shp') and file_name in map_filtered and k not in map_exists]
         list_excel=[k for k, file_name in map_files.items() if file_name.endswith('.xls') or file_name.endswith('.xlsx') and file_name in map_filtered]
         logger.info(f"validation_id:{validation_id}, dbf:{len(list_dbf)},shp:{len(list_shp)},csv:{len(list_csv)},excel:{len(list_excel)}")
-        
+                
         start_time_tot = get_now()
         if multithread: 
             logger.info(f"Caricamento parallelo, srid={srid}, load_type={load_type}")
@@ -244,6 +251,8 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
         logger.info(f"terminati shp:{len(list_shp)},Total time elapsed:{elapsed}")
         layers = [table for table in list_shp if table not in map_errors]
         publish_layers(group_id,layers=layers,with_view=True)
+        if len(map_exists)>0:
+            map_results["source_duplicated"]=map_exists
         return map_results
     except Exception as e:
         logger.error(f"Error shapeFile2Postgis  validation_id:{validation_id} error:{e}", exc_info=True)
@@ -467,10 +476,12 @@ def load_df_to_postgres(load_type,conn_str,schema,table_name,columns,df,columns_
                 conn.commit()
                 # Caricamento dei dati nella tabella
                 if hasattr(df,"to_postgis"):
-                    df.to_postgis(table_name, engine, if_exists=load_type, index=False, schema=schema,chunksize=CHUNCKSIZE)
+                    df.to_postgis(table_name, engine, if_exists="append", index=False, schema=schema,chunksize=CHUNCKSIZE)
                 else:
-                    df.to_sql(table_name, engine, if_exists=load_type, index=False, schema=schema,chunksize=CHUNCKSIZE)
-
+                    df.to_sql(table_name, engine, if_exists="append", index=False, schema=schema,chunksize=CHUNCKSIZE)
+                pickle_file = os.path.join("data",f"{table_name}.pickle")
+                with open(pickle_file, 'wb') as f:
+                    pickle.dump(df,f)
                 engine.dispose()
                 return True
     else:
