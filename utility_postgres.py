@@ -163,6 +163,11 @@ def shapeFile2Postgis(validation_id,map_files,map_tables_edited,group_id,conn_st
             if column.column not in [column.filename] and column.importing:
                 map_filtered[column.filename].append(column)
             
+        list_dbf=[k for k, file_name in map_files.items() if file_name.endswith('.dbf') and file_name in map_filtered]
+        list_csv=[k for k, file_name in map_files.items() if file_name.endswith('.csv') and file_name in map_filtered]
+        list_shp=[k for k, file_name in map_files.items() if file_name.endswith('.shp') and file_name in map_filtered]
+        list_excel=[k for k, file_name in map_files.items() if file_name.endswith('.xls') or file_name.endswith('.xlsx')]
+        
         map_exists = {} 
         for table in list_dbf:
             pickle_file =os.path.join("data",f"{table}.pickle")
