@@ -357,10 +357,12 @@ sys.stdout = sys.__stdout__"""
                 results[k]=v
             else:
                 map_obj[k]=f"{v}"
-                
+
+
+
         return JSONResponse(content={"output": captured_output,
-                                     "variables":results,
-                                     "object":map_obj,
+                                     "variables": results,
+                                     "object": map_obj,
                                      "group_id":group_id,
                                      "tables":tables,
                                      "layers":layers,

@@ -25,6 +25,7 @@ output = StringIO()
 # Sovrascrivi sys.stdout con l'oggetto StringIO
 sys.stdout = output
 # Esegui la funzione
+coeff=0.1
 def my_function():
     print("Hello, world!")
     a=c

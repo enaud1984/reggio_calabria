@@ -17,15 +17,28 @@
    	            }
 
 3 - UPLOAD MODELLO PYTHON --> nella cartella modelli
-    Response:	{"data":[{"filename":"model.py","schema":null,"table":null,"column":"id","type":"int","column_name":"id","import":null,isVariable:true,"df_out":false},
-       			         {"filename":"model.py","schema":"public","table":"output_table","column":"df2","type":"DataFrame","column_name":null,"import":null,isVariable:true,"df_out":true},
-                        ],
-       	            }
-       	            una riga per ogni variabile trovata nel modello come %HOSTNAME%
+
+    fase1:
+    "test unitario"
+    run_code(code_str, id_load_shape, params={}) -> results={"output": captured_output,    #sys.stdout
+                                                                 "variables": results, #variabili interne che l'utente può cambiare dalla gui
+                                                                "object": map_obj,    #funzioni interne al codice
+                                                                "group_id":group_id,
+                                                                "tables":tables,      #df pandas non geoPandas!
+                                                                "layers":layers,      #df geoPandas (shp)
+                                                                        }
+
+    fase2:
+    salvataggio sul db:
+       	           results={"output": captured_output,    #sys.stdout
+                                   "variables": results, #variabili interne che l'utente può cambiare dalla gui
+                                   "object": map_obj,    #funzioni interne al codice
+                                   "group_id":group_id,
+                                   "tables":tables,      #df pandas non geoPandas!
+                                   "layers":layers,      #df geoPandas (shp)
+                                   "id":ID_MODEL
+                            }
 
 
-4- analyze_model(id_model, id_load_shape, params={a:"ciao", b="X"}): -> tutte le variabili del modello, shape_table + param
-    insert in model_param [id_model_param, id_model, id_load_shape, map_table,params]
-
-
-5- execute--> (id_model, id_load_shape, id_model_param)
+4- submit--> (id_model, id_load_shape, id_model_param) id_model_param={"variables":{}, tables:{}, layer:{}} --> results={"id_load_shape":131,"layers":{table:url_geoservice}}
+   salvataggio sul db di results per consultazione
